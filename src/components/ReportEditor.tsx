@@ -1,14 +1,15 @@
 import { useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { cloudEnabled } from '../cloud/config';
+import { useCloud } from '../cloud/store';
 import { useT, type Key } from '../i18n';
-import { copyImage, copyText, documentToPng, reportToText } from '../lib/exporters';
-import { clone, downloadBlob, downloadText, makeDocNo, slugify } from '../lib/util';
+import { clone, downloadText, makeDocNo } from '../lib/util';
 import { navigate } from '../router';
 import { exportFile, findTemplate, templateSignature, useStore } from '../store';
 import { CLASSIFICATIONS, type Classification, type FieldDef } from '../types';
-import { Document } from './Document';
+import { ExportButtons, fileBaseFor } from './ExportButtons';
 import { FieldInput } from './FieldInput';
 import { PreviewPane } from './PreviewPane';
+import { PublishDialog } from './PublishDialog';
 
 /** Wide controls always take a full form row, whatever their width in the document. */
 function formSpan(def: FieldDef): string {
@@ -24,10 +25,10 @@ export function ReportEditor({ id }: { id: string }) {
   const setValue = useStore((s) => s.setValue);
   const duplicateReport = useStore((s) => s.duplicateReport);
   const deleteReport = useStore((s) => s.deleteReport);
-  const showToast = useStore((s) => s.showToast);
+  const published = useCloud((s) => s.mine.some((e) => e.localId === id));
 
   const docRef = useRef<HTMLElement>(null);
-  const [busy, setBusy] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [tab, setTab] = useState<'form' | 'preview'>('form');
 
   const current = report ? findTemplate(templates, report.template.id) : undefined;
@@ -50,35 +51,7 @@ export function ReportEditor({ id }: { id: string }) {
   }
 
   const tpl = report.template;
-  const fileBase = slugify(`${report.docNo} ${report.title}`);
-
-  /** Runs an export that needs the rendered document, with one busy state for all of them. */
-  const withImage = async (use: (png: Blob) => Promise<void> | void, done?: Key) => {
-    if (!docRef.current || busy) return;
-    setBusy(true);
-    try {
-      // On a phone the document sits in a hidden tab, and a hidden element cannot be drawn.
-      if (docRef.current.offsetWidth === 0) {
-        setTab('preview');
-        await new Promise((resolve) => setTimeout(resolve, 150));
-      }
-      await use(await documentToPng(docRef.current));
-      if (done) showToast(t(done));
-    } catch {
-      showToast(t('toast.pngFailed'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const copyAsText = async () => {
-    try {
-      await copyText(reportToText(report));
-      showToast(t('toast.copied'));
-    } catch {
-      showToast(t('toast.clipboardFailed'));
-    }
-  };
+  const fileBase = fileBaseFor(report);
 
   const remove = () => {
     if (!window.confirm(t('reports.confirmDelete'))) return;
@@ -102,18 +75,12 @@ export function ReportEditor({ id }: { id: string }) {
           <span className="editor-docno">{report.docNo}</span>
         </span>
         <div className="editor-actions">
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => withImage((png) => downloadBlob(png, `${fileBase}.png`))}>
-            {busy ? t('export.working') : t('export.png')}
-          </button>
-          <button type="button" className="btn" disabled={busy} onClick={() => withImage(copyImage, 'toast.imageCopied')}>
-            {t('export.copyImage')}
-          </button>
-          <button type="button" className="btn" onClick={() => window.print()}>
-            {t('export.print')}
-          </button>
-          <button type="button" className="btn" onClick={copyAsText}>
-            {t('export.copyText')}
-          </button>
+          <ExportButtons report={report} docRef={docRef} onReveal={() => setTab('preview')} />
+          {cloudEnabled && (
+            <button type="button" className="btn" onClick={() => setPublishing(true)}>
+              {published ? t('archive.published') : t('archive.publish')}
+            </button>
+          )}
           <button
             type="button"
             className="btn"
@@ -239,8 +206,7 @@ export function ReportEditor({ id }: { id: string }) {
         <PreviewPane ref={docRef} report={report} />
       </div>
 
-      {/* Printing uses its own full-size copy; see #print-root in document.css. */}
-      {createPortal(<Document report={report} />, document.getElementById('print-root')!)}
+      {publishing && <PublishDialog report={report} onClose={() => setPublishing(false)} />}
     </main>
   );
 }

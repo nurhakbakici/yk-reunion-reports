@@ -1,4 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { cloudEnabled } from './cloud/config';
+import { useCloud } from './cloud/store';
+import { AccountDialog } from './components/AccountDialog';
+import { ArchiveReport, ArchiveView } from './components/ArchiveView';
 import { Emblem } from './components/Emblem';
 import { ReportEditor } from './components/ReportEditor';
 import { ReportsView } from './components/ReportsView';
@@ -17,13 +21,31 @@ export function App() {
   const setLang = useStore((s) => s.setLang);
   const toast = useStore((s) => s.toast);
   const init = useStore((s) => s.init);
+  const cloudInit = useCloud((s) => s.init);
+  const cloudUser = useCloud((s) => s.user);
+  const cloudName = useCloud((s) => s.profile?.displayName);
+  const linkError = useCloud((s) => s.linkError);
+  const [account, setAccount] = useState(false);
 
   useEffect(() => {
     document.documentElement.lang = lang;
     void init();
+    cloudInit();
   }, []);
 
-  const inReports = route.view === 'reports' || route.view === 'report';
+  // Arriving from a dead sign-in link: open the dialog, which explains and offers a new one.
+  useEffect(() => {
+    if (linkError) setAccount(true);
+  }, [linkError]);
+
+  const section =
+    route.view === 'archive' || route.view === 'archived'
+      ? 'archive'
+      : route.view === 'templates' || route.view === 'template'
+        ? 'templates'
+        : 'reports';
+  // Without an archive configured, its pages behave like any unknown address.
+  const showArchive = cloudEnabled && section === 'archive';
 
   return (
     <>
@@ -36,13 +58,23 @@ export function App() {
           </span>
         </a>
         <nav className="nav">
-          <a href="#/reports" aria-current={inReports ? 'page' : undefined}>
+          <a href="#/reports" aria-current={section === 'reports' || (section === 'archive' && !cloudEnabled) ? 'page' : undefined}>
             {t('nav.reports')}
           </a>
-          <a href="#/templates" aria-current={inReports ? undefined : 'page'}>
+          <a href="#/templates" aria-current={section === 'templates' ? 'page' : undefined}>
             {t('nav.templates')}
           </a>
+          {cloudEnabled && (
+            <a href="#/archive" aria-current={section === 'archive' ? 'page' : undefined}>
+              {t('nav.archive')}
+            </a>
+          )}
         </nav>
+        {cloudEnabled && (
+          <button type="button" className="btn btn-small account-btn" onClick={() => setAccount(true)}>
+            {cloudUser ? cloudName || cloudUser.email : t('account.signIn')}
+          </button>
+        )}
         <div className="lang" role="group" aria-label="Dil / Language">
           <button type="button" aria-pressed={lang === 'tr'} onClick={() => setLang('tr')}>
             TR
@@ -59,6 +91,10 @@ export function App() {
         <main className="page">
           <p className="group-empty">{t('app.loading')}</p>
         </main>
+      ) : showArchive && route.view === 'archived' ? (
+        <ArchiveReport key={route.id} id={route.id} />
+      ) : showArchive ? (
+        <ArchiveView />
       ) : route.view === 'report' ? (
         <ReportEditor key={route.id} id={route.id} />
       ) : route.view === 'template' ? (
@@ -68,6 +104,8 @@ export function App() {
       ) : (
         <ReportsView />
       )}
+
+      {account && <AccountDialog onClose={() => setAccount(false)} />}
 
       {toast && (
         <div className="toast" role="status">

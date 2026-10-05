@@ -20,9 +20,12 @@ export function asRows(v: FieldValue | undefined, cols: number): string[][] {
   });
 }
 
+/** Only pictures embedded in the report itself are shown. A remote address in a
+ *  shared report would let its author see who opens it, so those are dropped. */
 export function asImage(v: FieldValue | undefined): ImageValue {
   if (v && typeof v === 'object' && !Array.isArray(v) && 'src' in v) {
-    return { src: String(v.src ?? ''), caption: String(v.caption ?? '') };
+    const src = String(v.src ?? '');
+    return { src: src.startsWith('data:image/') ? src : '', caption: String(v.caption ?? '') };
   }
   return { src: '', caption: '' };
 }

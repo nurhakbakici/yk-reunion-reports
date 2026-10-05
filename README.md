@@ -61,10 +61,54 @@ Field types: short text, long text, choice, date, bullet list, table, level mete
 
 A report keeps its own copy of the template it was made from, so editing or deleting a template never breaks old reports. When the template has changed, the report offers to move to the new version.
 
+## Shared campaign archive (optional)
+
+Out of the box every player's reports stay in their own browser. Connecting a free [Supabase](https://supabase.com) project adds a shared archive:
+
+- an **Arşiv** tab that anyone can read, without an account;
+- an **Arşive yayınla** button on every report, for signed-in campaign members;
+- per report, the author chooses **Herkes** (public) or **Yalnızca oyun yöneticileri** (only the author and GMs can see it);
+- authors can update or remove their own publications; GMs can remove any.
+
+Publishing sends a snapshot. Drafts and later edits stay private until published again.
+
+Until the two values in `src/cloud/config.ts` are filled in, none of this is shown and the app behaves as before.
+
+### Setting it up
+
+Menu names in the Supabase dashboard change now and then; look for the nearest match.
+
+1. **Create the project.** Sign up at supabase.com, create a new project (any region near your players), and wait for it to finish starting.
+2. **Create the tables and access rules.** Open *SQL Editor*, paste the whole of [`supabase/schema.sql`](supabase/schema.sql), and run it.
+3. **Tell Supabase where the app lives.** In *Authentication → URL Configuration* set *Site URL* to the app's address (for example `https://nurhakbakici.github.io/yk-reunion-reports/`) and add the same address under *Redirect URLs*. Add `http://127.0.0.1:3600/` too if you want to sign in while developing.
+4. **Make sign-in emails work.** Supabase's built-in mail sender only delivers to the project owner's own addresses and is limited to a couple of messages an hour, so players will not receive anything until you connect a mail service under *Authentication → Emails → SMTP Settings* (Resend, Brevo, Postmark and similar have free tiers). Then, in the *Magic Link* email template, add a line containing `{{ .Token }}` so the email also shows a code; the code lets people sign in on a different device from the one that received the email, and in the copy of the app opened from disk.
+
+   *Alternative without any email:* enable the Discord provider under *Authentication → Providers* and set `DISCORD_LOGIN = true` in `src/cloud/config.ts`. A "Discord ile giriş yap" button appears next to the email form.
+5. **Connect the app.** From *Project Settings → API* copy the *Project URL* and the *anon / publishable* key into `src/cloud/config.ts`, then commit and push. Both values are meant to be public. Never put the `service_role` key in the app.
+6. **Become a GM and get the join code.** Sign in once on the site, then run these in the SQL Editor:
+
+   ```sql
+   update public.profiles set is_gm = true
+   where id = (select id from auth.users where email = 'you@example.com');
+
+   select value from public.app_settings where key = 'join_code';
+   ```
+
+   Give the join code to your players. Each enters it once, the first time they publish. More admin queries (changing the code, removing a member) are at the end of `schema.sql`.
+
+### Good to know
+
+- **Who can publish:** only people who signed in *and* entered the join code, or GMs. A stranger who finds the site can read public reports but cannot add any.
+- **Author names** come from each person's display name in *Hesap*, taken by the database from their login. They cannot be typed in per report.
+- **Free-tier pause:** Supabase pauses a free project after about a week with no activity. Reading the archive counts as activity; if it does pause, resume it from the dashboard.
+- **Size:** a published report can be up to roughly 3.5 MB, images included. The free database holds 500 MB.
+
 ## Project layout
 
 ```
+supabase/schema.sql        Archive tables and access rules (run once in Supabase)
 src/
+  cloud/                   Archive connection, sign-in and publishing
   lore.ts                  Setting data from the wiki (departments, locations, …)
   templates/builtin.ts     The built-in templates
   types.ts                 Template / Report data model
