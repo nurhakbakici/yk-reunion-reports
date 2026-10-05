@@ -5,9 +5,10 @@
 -- Access rules, in one place:
 --   * Anyone (no login) can read reports published to "everyone".
 --   * Reports published to "gms" are readable only by their author and by GMs.
---   * Publishing needs a login AND campaign membership (the join code) or GM status.
+--   * Publishing needs campaign membership (the join code) or GM status (the GM code).
+--     There are no emails or passwords: each browser gets an anonymous identity.
 --   * Authors can change or remove their own reports. GMs can remove any report.
---   * Nobody can make themselves a GM or a member from the app; see the end of this file.
+--   * Nobody becomes a member or a GM without the matching code; see the end of this file.
 
 -- --- profiles ---------------------------------------------------------------
 
@@ -21,7 +22,7 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
--- Every new login gets a profile; the name starts as the part before the @.
+-- Every new identity gets a profile; the name is filled in by the app right after.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -90,11 +91,17 @@ create table if not exists public.app_settings (
 alter table public.app_settings enable row level security;
 revoke all on public.app_settings from anon, authenticated;
 
--- A random code on first install. Read or change it with the queries at the end.
+-- Random codes on first install: one for players, one for game masters.
+-- Read or change them with the queries at the end.
 insert into public.app_settings (key, value)
 values ('join_code', substr(md5(random()::text || clock_timestamp()::text), 1, 10))
 on conflict (key) do nothing;
 
+insert into public.app_settings (key, value)
+values ('gm_code', substr(md5(random()::text || clock_timestamp()::text || 'gm'), 1, 14))
+on conflict (key) do nothing;
+
+-- The player code lets the caller publish; the GM code also makes them a GM.
 create or replace function public.join_campaign(code text)
 returns boolean
 language plpgsql
@@ -102,18 +109,25 @@ security definer
 set search_path = ''
 as $$
 declare
-  expected text;
+  given text := lower(trim(coalesce(code, '')));
+  player_code text;
+  gm_code text;
 begin
   if auth.uid() is null then
     return false;
   end if;
-  select s.value into expected from public.app_settings s where s.key = 'join_code';
-  if expected is null or expected = '' or code is null or lower(trim(code)) <> lower(expected) then
-    perform pg_sleep(1); -- makes guessing slow
-    return false;
+  select lower(s.value) into player_code from public.app_settings s where s.key = 'join_code';
+  select lower(s.value) into gm_code from public.app_settings s where s.key = 'gm_code';
+  if given <> '' and given = gm_code then
+    update public.profiles set is_gm = true, is_member = true where id = auth.uid();
+    return true;
   end if;
-  update public.profiles set is_member = true where id = auth.uid();
-  return true;
+  if given <> '' and given = player_code then
+    update public.profiles set is_member = true where id = auth.uid();
+    return true;
+  end if;
+  perform pg_sleep(1); -- makes guessing slow
+  return false;
 end;
 $$;
 
@@ -208,16 +222,15 @@ grant insert, update, delete on public.published_reports to authenticated;
 
 -- --- running the campaign (use these in the SQL Editor) -----------------------
 --
--- See the join code to hand to your players:
---   select value from public.app_settings where key = 'join_code';
+-- See both codes: join_code is for players, gm_code for game masters.
+--   select key, value from public.app_settings;
 --
--- Change the join code:
+-- Change a code (people who already joined keep their rights):
 --   update public.app_settings set value = 'new-code-here' where key = 'join_code';
+--   update public.app_settings set value = 'new-gm-code' where key = 'gm_code';
 --
--- Make someone a GM (they must have signed in once first):
---   update public.profiles set is_gm = true
---   where id = (select id from auth.users where email = 'gm@example.com');
+-- See who has joined:
+--   select id, display_name, is_gm, is_member, created_at from public.profiles order by created_at;
 --
--- Remove someone's right to publish:
---   update public.profiles set is_member = false, is_gm = false
---   where id = (select id from auth.users where email = 'someone@example.com');
+-- Remove someone's right to publish (take the id from the list above):
+--   update public.profiles set is_member = false, is_gm = false where id = '<id>';

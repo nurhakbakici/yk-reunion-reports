@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { normalizeReport } from '../store';
 import type { Report } from '../types';
-import { getClient, returnUrl } from './client';
+import { getClient } from './client';
 import { cloudEnabled } from './config';
 
 // State for the shared archive: who is signed in, and what has been published.
@@ -66,19 +66,17 @@ export class CloudError extends Error {
 interface CloudState {
   /** True once we know whether someone is signed in. */
   ready: boolean;
-  user: { id: string; email: string } | null;
+  /** This browser's identity in the archive. There are no accounts behind it. */
+  user: { id: string } | null;
   profile: Profile | null;
   list: ArchiveEntry[];
   listState: 'idle' | 'loading' | 'ready' | 'error';
   /** The signed-in user's own published reports. */
   mine: ArchiveEntry[];
-  /** Set when the page was opened from a sign-in link that no longer works. */
-  linkError: boolean;
 
   init: () => void;
-  sendLink: (email: string) => Promise<boolean>;
-  verifyCode: (email: string, code: string) => Promise<boolean>;
-  signInWithDiscord: () => Promise<void>;
+  /** Joins with a name and a campaign code, creating this browser's identity if it has none. */
+  enter: (name: string, code: string) => Promise<'ok' | 'bad-code' | 'failed'>;
   signOut: () => Promise<void>;
   rename: (name: string) => Promise<boolean>;
   join: (code: string) => Promise<boolean>;
@@ -119,22 +117,15 @@ export const useCloud = create<CloudState>((set, get) => {
     list: [],
     listState: 'idle',
     mine: [],
-    linkError: false,
 
     init() {
       const client = getClient();
       if (!client || started) return;
       started = true;
 
-      // An expired or already-used sign-in link comes back as an error in the address.
-      if (/[#&]error(_code|_description)?=/.test(window.location.hash)) {
-        set({ linkError: true });
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      }
-
       client.auth.onAuthStateChange((_event, session) => {
         const previous = get().user?.id ?? null;
-        const user = session?.user ? { id: session.user.id, email: session.user.email ?? '' } : null;
+        const user = session?.user ? { id: session.user.id } : null;
         set({ ready: true, user, ...(user ? {} : { profile: null, mine: [] }) });
         if (user?.id === previous) return;
         // The client must not be called from inside its own auth callback.
@@ -146,25 +137,23 @@ export const useCloud = create<CloudState>((set, get) => {
       });
     },
 
-    async sendLink(email) {
+    async enter(name, code) {
       const client = getClient();
-      if (!client) return false;
-      const { error } = await client.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: returnUrl(), shouldCreateUser: true },
-      });
-      return !error;
-    },
-
-    async verifyCode(email, code) {
-      const client = getClient();
-      if (!client) return false;
-      const { error } = await client.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
-      return !error;
-    },
-
-    async signInWithDiscord() {
-      await getClient()?.auth.signInWithOAuth({ provider: 'discord', options: { redirectTo: returnUrl() } });
+      if (!client) return 'failed';
+      let userId = get().user?.id;
+      if (!userId) {
+        // No email and no password: the browser gets an identity of its own.
+        const { data, error } = await client.auth.signInAnonymously();
+        if (error || !data.user) return 'failed';
+        userId = data.user.id;
+        if (get().user?.id !== userId) set({ ready: true, user: { id: userId } });
+      }
+      const displayName = name.trim().slice(0, 60);
+      const renamed = await client.from('profiles').update({ display_name: displayName }).eq('id', userId);
+      const joined = await client.rpc('join_campaign', { code });
+      await loadAccount(userId);
+      if (renamed.error || joined.error) return 'failed';
+      return joined.data === true ? 'ok' : 'bad-code';
     },
 
     async signOut() {

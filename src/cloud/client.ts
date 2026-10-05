@@ -7,14 +7,7 @@ let client: SupabaseClient | null = null;
 export function getClient(): SupabaseClient | null {
   if (!cloudEnabled) return null;
   client ??= createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
   });
   return client;
-}
-
-/** Where a sign-in link should bring the user back to. A page opened from disk
- *  has no address to return to, so there the emailed code is used instead. */
-export function returnUrl(): string | undefined {
-  if (window.location.protocol === 'file:') return undefined;
-  return window.location.origin + window.location.pathname;
 }

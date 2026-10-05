@@ -24,7 +24,6 @@ export function App() {
   const cloudInit = useCloud((s) => s.init);
   const cloudUser = useCloud((s) => s.user);
   const cloudName = useCloud((s) => s.profile?.displayName);
-  const linkError = useCloud((s) => s.linkError);
   const [account, setAccount] = useState(false);
 
   useEffect(() => {
@@ -32,11 +31,6 @@ export function App() {
     void init();
     cloudInit();
   }, []);
-
-  // Arriving from a dead sign-in link: open the dialog, which explains and offers a new one.
-  useEffect(() => {
-    if (linkError) setAccount(true);
-  }, [linkError]);
 
   const section =
     route.view === 'archive' || route.view === 'archived'
@@ -72,7 +66,7 @@ export function App() {
         </nav>
         {cloudEnabled && (
           <button type="button" className="btn btn-small account-btn" onClick={() => setAccount(true)}>
-            {cloudUser ? cloudName || cloudUser.email : t('account.signIn')}
+            {cloudUser ? cloudName || t('account.title') : t('account.signIn')}
           </button>
         )}
         <div className="lang" role="group" aria-label="Dil / Language">

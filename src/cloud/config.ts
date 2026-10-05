@@ -11,7 +11,6 @@ const PROJECT_URL = 'https://bgaymjxpzalukzryptwu.supabase.co';
 const PUBLIC_KEY = 'sb_publishable_HQ5QBskDym4E6b9qMkFmpQ_qm7A8ikW'; // publishable key — never the secret / service_role key
 
 /** Set to true after enabling the Discord provider in Supabase (Authentication → Providers). */
-export const DISCORD_LOGIN = false;
 
 export const SUPABASE_URL: string = import.meta.env.VITE_SUPABASE_URL || PROJECT_URL;
 export const SUPABASE_KEY: string = import.meta.env.VITE_SUPABASE_KEY || PUBLIC_KEY;

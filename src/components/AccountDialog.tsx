@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { DISCORD_LOGIN } from '../cloud/config';
 import { useCloud } from '../cloud/store';
 import { useT } from '../i18n';
 import { useStore } from '../store';
@@ -27,84 +26,46 @@ export function Dialog({ title, onClose, children }: { title: string; onClose: (
   );
 }
 
-function SignInForm() {
+/** First visit: a name to sign reports with and the code that lets this browser publish. */
+function EnterForm() {
   const t = useT();
-  const sendLink = useCloud((s) => s.sendLink);
-  const verifyCode = useCloud((s) => s.verifyCode);
-  const signInWithDiscord = useCloud((s) => s.signInWithDiscord);
-  const linkError = useCloud((s) => s.linkError);
-  const [email, setEmail] = useState('');
+  const enter = useCloud((s) => s.enter);
+  const showToast = useStore((s) => s.showToast);
+  const [name, setName] = useState('');
   const [code, setCode] = useState('');
-  const [sentTo, setSentTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const send = async (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (busy || !email.trim()) return;
+    if (busy || !name.trim() || !code.trim()) return;
     setBusy(true);
     setError('');
-    const ok = await sendLink(email);
+    const result = await enter(name, code);
+    // By now the dialog may already show the joined view, so the outcome goes in a toast too.
+    if (result === 'ok') showToast(t('account.joined'));
+    else if (result === 'bad-code') showToast(t('account.badJoin'));
+    else setError(t('account.enterFailed'));
     setBusy(false);
-    if (ok) setSentTo(email.trim());
-    else setError(t('account.sendFailed'));
   };
-
-  const verify = async (e: FormEvent) => {
-    e.preventDefault();
-    if (busy || !code.trim()) return;
-    setBusy(true);
-    setError('');
-    const ok = await verifyCode(sentTo, code);
-    setBusy(false);
-    // On success the dialog re-renders as the signed-in view by itself.
-    if (!ok) setError(t('account.badCode'));
-  };
-
-  if (sentTo) {
-    return (
-      <form className="stack" onSubmit={verify}>
-        <p className="dialog-text">{t('account.sent', { email: sentTo })}</p>
-        <label className="field">
-          <span className="field-label">{t('account.code')}</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-        </label>
-        {error && <p className="form-error">{error}</p>}
-        <div className="dialog-actions">
-          <button type="button" className="btn" onClick={() => setSentTo('')}>
-            {t('account.otherEmail')}
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={busy || !code.trim()}>
-            {t('account.verify')}
-          </button>
-        </div>
-      </form>
-    );
-  }
 
   return (
-    <form className="stack" onSubmit={send}>
+    <form className="stack" onSubmit={submit}>
       <p className="dialog-text">{t('account.why')}</p>
-      {linkError && <p className="form-error">{t('account.linkFailed')}</p>}
       <label className="field">
-        <span className="field-label">{t('account.email')}</span>
-        <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <span className="field-label">{t('account.displayName')}</span>
+        <input type="text" maxLength={60} autoComplete="nickname" value={name} onChange={(e) => setName(e.target.value)} />
+        <span className="field-help">{t('account.displayNameHint')}</span>
+      </label>
+      <label className="field">
+        <span className="field-label">{t('account.joinCode')}</span>
+        <input type="text" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />
+        <span className="field-help">{t('account.joinHint')}</span>
       </label>
       {error && <p className="form-error">{error}</p>}
       <div className="dialog-actions">
-        {DISCORD_LOGIN && (
-          <button type="button" className="btn" onClick={() => void signInWithDiscord()}>
-            {t('account.discord')}
-          </button>
-        )}
-        <button type="submit" className="btn btn-primary" disabled={busy || !email.trim()}>
-          {busy ? t('export.working') : t('account.sendLink')}
+        <button type="submit" className="btn btn-primary" disabled={busy || !name.trim() || !code.trim()}>
+          {busy ? t('export.working') : t('account.join')}
         </button>
       </div>
     </form>
@@ -150,7 +111,6 @@ export function JoinForm() {
 
 function SignedIn({ onClose }: { onClose: () => void }) {
   const t = useT();
-  const user = useCloud((s) => s.user);
   const profile = useCloud((s) => s.profile);
   const rename = useCloud((s) => s.rename);
   const signOut = useCloud((s) => s.signOut);
@@ -170,7 +130,7 @@ function SignedIn({ onClose }: { onClose: () => void }) {
   return (
     <div className="stack">
       <p className="dialog-text">
-        {t('account.signedInAs', { email: user?.email ?? '' })}
+        {t('account.device')}
         {profile?.isGm && <span className="chip chip-accent">{t('account.gm')}</span>}
         {profile && !profile.isGm && profile.isMember && <span className="chip">{t('account.member')}</span>}
       </p>
@@ -188,13 +148,15 @@ function SignedIn({ onClose }: { onClose: () => void }) {
         </label>
       </form>
 
-      {profile && !profile.isGm && !profile.isMember && <JoinForm />}
+      {/* A member can still enter the GM code here to be promoted. */}
+      {profile && !profile.isGm && <JoinForm />}
 
       <div className="dialog-actions">
         <button
           type="button"
           className="btn"
           onClick={() => {
+            if (!window.confirm(t('account.confirmForget'))) return;
             void signOut();
             onClose();
           }}
@@ -211,7 +173,7 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
   const user = useCloud((s) => s.user);
   return (
     <Dialog title={user ? t('account.title') : t('account.signIn')} onClose={onClose}>
-      {user ? <SignedIn onClose={onClose} /> : <SignInForm />}
+      {user ? <SignedIn onClose={onClose} /> : <EnterForm />}
     </Dialog>
   );
 }
