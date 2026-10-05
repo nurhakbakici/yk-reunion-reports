@@ -11,6 +11,7 @@ export function sampleReport(template: Template, title = ''): Report {
     classification: template.classification,
     stamp: '',
     hideEmpty: false,
+    watermark: true,
     template,
     values: {},
     createdAt: 0,

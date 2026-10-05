@@ -1,4 +1,4 @@
-import { forwardRef, type CSSProperties } from 'react';
+import { forwardRef, useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { translate, type Key } from '../i18n';
 import { PROJECT_NAME, SHIP_NAME } from '../lore';
 import { renderInline, renderRich } from '../lib/markup';
@@ -13,6 +13,64 @@ import { Emblem } from './Emblem';
 
 interface Props {
   report: Report;
+  /** Height to assume while the document is not laid out yet (the hidden print copy). */
+  heightHint?: number;
+}
+
+const PAGE_WIDTH = 794;
+const PAGE_HEIGHT = 1123;
+
+/** Splits a document's height into printed pages. A last part too short to
+ *  carry a stamp of its own is left bare rather than given a squashed one. */
+function pageBoxes(height: number): { top: number; height: number }[] {
+  const boxes: { top: number; height: number }[] = [];
+  let top = 0;
+  while (height - top >= PAGE_HEIGHT * 1.45) {
+    boxes.push({ top, height: PAGE_HEIGHT });
+    top += PAGE_HEIGHT;
+  }
+  const rest = height - top;
+  if (rest <= PAGE_HEIGHT * 1.02) {
+    if (rest >= PAGE_HEIGHT * 0.45 || boxes.length === 0) boxes.push({ top, height: rest });
+  } else {
+    // Between one and one-and-a-half pages: a full page, the remainder stays bare.
+    boxes.push({ top, height: PAGE_HEIGHT });
+  }
+  return boxes;
+}
+
+/** The classification written corner to corner across each page, like a rubber
+ *  stamp on a file. One box per letter, spread evenly, so any word spans the
+ *  whole diagonal. Plain HTML text on purpose: the image export loses the
+ *  colour of SVG text. */
+function Watermark({ label, height }: { label: string; height: number }) {
+  const letters = Array.from(label);
+  return (
+    <div className="doc-watermark" aria-hidden="true">
+      {pageBoxes(height).map((box) => {
+        const span = Math.hypot(PAGE_WIDTH, box.height) * 0.8;
+        const angle = (-Math.atan2(box.height, PAGE_WIDTH) * 180) / Math.PI;
+        // Short words get big letters; long ones shrink until they fit the diagonal.
+        const size = Math.min(span / (letters.length * 0.68), 210);
+        return (
+          <div
+            key={box.top}
+            className="doc-watermark-line"
+            style={{
+              top: box.top + box.height / 2,
+              width: span,
+              fontSize: size,
+              transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+            }}
+          >
+            {letters.map((ch, i) => (
+              <span key={i}>{ch === ' ' ? '\u00a0' : ch}</span>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function FieldBody({ def, value, docNo, lang }: { def: FieldDef; value: FieldValue | undefined; docNo: string; lang: Lang }) {
@@ -117,9 +175,31 @@ function portraitRows(fields: FieldDef[]): number {
   return rows;
 }
 
-export const Document = forwardRef<HTMLElement, Props>(function Document({ report }, ref) {
+export const Document = forwardRef<HTMLElement, Props>(function Document({ report, heightHint }, ref) {
   const tpl = report.template;
   const lang = tpl.lang;
+
+  // The watermark follows the page's real diagonal, so it needs the page's size.
+  const own = useRef<HTMLElement | null>(null);
+  const setRefs = useCallback(
+    (node: HTMLElement | null) => {
+      own.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
+  const [measured, setMeasured] = useState(0);
+  useLayoutEffect(() => {
+    const node = own.current;
+    if (!node) return;
+    const measure = () => node.offsetHeight > 0 && setMeasured(node.offsetHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  const pageHeight = measured || heightHint || PAGE_HEIGHT;
   const t = (key: Key) => translate(lang, key);
   const classified = report.classification !== 'none';
   const classLabel = t(`class.${report.classification}` as Key);
@@ -135,7 +215,7 @@ export const Document = forwardRef<HTMLElement, Props>(function Document({ repor
 
   return (
     <article
-      ref={ref}
+      ref={setRefs}
       lang={lang}
       className={`doc theme-${tpl.theme} class-${report.classification}`}
       style={{ '--accent': tpl.accent } as CSSProperties}
@@ -218,6 +298,9 @@ export const Document = forwardRef<HTMLElement, Props>(function Document({ repor
       </div>
 
       {classified && <div className="doc-class">{classLabel}</div>}
+      {classified && report.watermark && (
+        <Watermark label={classLabel.toLocaleUpperCase(lang)} height={pageHeight} />
+      )}
     </article>
   );
 });

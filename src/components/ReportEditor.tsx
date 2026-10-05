@@ -182,6 +182,15 @@ export function ReportEditor({ id }: { id: string }) {
                 />
                 <span>{t('editor.hideEmpty')}</span>
               </label>
+              <label className="check span-2">
+                <input
+                  type="checkbox"
+                  checked={report.watermark}
+                  disabled={report.classification === 'none'}
+                  onChange={(e) => patchReport(report.id, { watermark: e.target.checked })}
+                />
+                <span>{t('editor.watermark')}</span>
+              </label>
             </div>
           </section>
 

@@ -108,6 +108,48 @@
 .doc.class-gizli { --class-bg: #b3261e; }
 .doc.class-cok-gizli { --class-bg: #6e0d12; }
 
+/* The same marking, stamped corner to corner over each page. It sits on top of
+   the text like ink would, faint enough to read through. The ink is brighter
+   than the bars: at this strength the bar colours would dry to grey. */
+.doc-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  color: var(--stamp-ink, #d0111f);
+  opacity: 0.2;
+  pointer-events: none;
+  user-select: none;
+}
+.doc-watermark-line {
+  position: absolute;
+  left: 50%;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-head);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: none;
+}
+.doc.class-acik { --stamp-ink: #128a57; }
+.doc.class-hizmete-ozel { --stamp-ink: #d08a00; }
+.doc.class-gizli,
+.doc.class-cok-gizli { --stamp-ink: #d0111f; }
+/* Dark pages need lighter ink to carry the same weight. */
+.doc.theme-konsol.class-acik,
+.doc.theme-amber.class-acik { --stamp-ink: #3fdc97; }
+.doc.theme-konsol.class-hizmete-ozel,
+.doc.theme-amber.class-hizmete-ozel { --stamp-ink: #ffc23d; }
+.doc.theme-konsol.class-gizli,
+.doc.theme-amber.class-gizli,
+.doc.theme-konsol.class-cok-gizli,
+.doc.theme-amber.class-cok-gizli { --stamp-ink: #ff5a4f; }
+.theme-konsol .doc-watermark,
+.theme-amber .doc-watermark {
+  opacity: 0.24;
+}
+
 /* --- header ------------------------------------------------------------------- */
 
 .doc-body {

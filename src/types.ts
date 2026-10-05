@@ -114,6 +114,8 @@ export interface Report {
   /** Optional rotated stamp, e.g. "ONAYLANDI". */
   stamp: string;
   hideEmpty: boolean;
+  /** Draw the classification diagonally across the whole page as well. */
+  watermark: boolean;
   /** Snapshot of the template the report was created from, so a report stays
    *  readable after the template is edited, deleted, or sent to someone else. */
   template: Template;

@@ -1,5 +1,5 @@
-import { useState, type RefObject } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useState, type RefObject } from 'react';
+import { createPortal, flushSync } from 'react-dom';
 import { useT, type Key } from '../i18n';
 import { copyImage, copyText, documentToPng, reportToText } from '../lib/exporters';
 import { downloadBlob, slugify } from '../lib/util';
@@ -24,6 +24,15 @@ export function ExportButtons({ report, docRef, onReveal }: Props) {
   const t = useT();
   const showToast = useStore((s) => s.showToast);
   const [busy, setBusy] = useState(false);
+
+  // The print copy is not laid out until printing starts, so it cannot measure
+  // itself in time; hand it the height of the copy that is on screen.
+  const [printHeight, setPrintHeight] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    const sync = () => flushSync(() => setPrintHeight(docRef.current?.offsetHeight || undefined));
+    window.addEventListener('beforeprint', sync);
+    return () => window.removeEventListener('beforeprint', sync);
+  }, [docRef]);
 
   /** Runs an export that needs the rendered document, with one busy state for all of them. */
   const withImage = async (use: (png: Blob) => Promise<void> | void, done?: Key) => {
@@ -74,7 +83,7 @@ export function ExportButtons({ report, docRef, onReveal }: Props) {
       </button>
 
       {/* Printing uses its own full-size copy; see #print-root in document.css. */}
-      {createPortal(<Document report={report} />, document.getElementById('print-root')!)}
+      {createPortal(<Document report={report} heightHint={printHeight} />, document.getElementById('print-root')!)}
     </>
   );
 }
