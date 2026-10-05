@@ -1,0 +1,555 @@
+/* The in-game document. 794 × 1123 px is A4 at 96 dpi, so the same markup
+   prints 1:1 and exports as a sharp PNG. Each theme only sets variables. */
+
+.doc {
+  --paper: #0b131a;
+  --ink: #d7e7ee;
+  --dim: #7c97a4;
+  --line: color-mix(in srgb, var(--accent) 34%, transparent);
+  --panel: color-mix(in srgb, var(--accent) 8%, transparent);
+  --on-accent: #06100f;
+  --stamp: var(--accent);
+  --font-head: 'Oxanium', 'Bahnschrift', 'Segoe UI', sans-serif;
+  --font-body: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  --font-hand: 'IBM Plex Serif', Georgia, serif;
+  --body-size: 12.5px;
+
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 794px;
+  min-height: 1123px;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--body-size);
+  line-height: 1.55;
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+}
+
+.doc *,
+.doc *::before,
+.doc *::after {
+  box-sizing: border-box;
+}
+
+/* --- themes ----------------------------------------------------------------- */
+
+.doc.theme-konsol {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.doc.theme-amber {
+  --paper: #0f0a04;
+  --ink: color-mix(in srgb, var(--accent) 88%, #fff);
+  --dim: color-mix(in srgb, var(--accent) 58%, #0f0a04);
+  --line: color-mix(in srgb, var(--accent) 40%, transparent);
+  --on-accent: #0f0a04;
+  --font-head: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  --font-hand: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2px,
+    rgba(0, 0, 0, 0.28) 2px,
+    rgba(0, 0, 0, 0.28) 3px
+  );
+  text-shadow: 0 0 6px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.doc.theme-evrak {
+  --paper: #ebe5d4;
+  --ink: #24211b;
+  --dim: #6c6555;
+  --line: rgba(36, 33, 27, 0.3);
+  --panel: rgba(36, 33, 27, 0.06);
+  --on-accent: #f4efe2;
+  --stamp: #b3261e;
+  --font-body: 'IBM Plex Serif', Cambria, Georgia, serif;
+  --body-size: 13px;
+  background-image: radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.35), transparent 60%);
+}
+
+.doc.theme-kurumsal {
+  --paper: #f7f8fa;
+  --ink: #18212c;
+  --dim: #5f6f83;
+  --line: #d3dae3;
+  --panel: #ffffff;
+  --on-accent: #ffffff;
+  --stamp: #b3261e;
+  --font-body: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --body-size: 13px;
+  border-top: 8px solid var(--accent);
+}
+
+/* --- classification bars ------------------------------------------------------ */
+
+.doc-class {
+  padding: 7px 0 6px;
+  background: var(--class-bg, #555);
+  color: #fff;
+  font: 700 11px/1 var(--font-head);
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+.doc.class-acik { --class-bg: #1d7654; }
+.doc.class-hizmete-ozel { --class-bg: #a56d0f; }
+.doc.class-gizli { --class-bg: #b3261e; }
+.doc.class-cok-gizli { --class-bg: #6e0d12; }
+
+/* --- header ------------------------------------------------------------------- */
+
+.doc-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 44px 22px;
+}
+
+.doc-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--accent);
+}
+
+.doc-emblem {
+  flex: none;
+  width: 60px;
+  height: 60px;
+  color: var(--accent);
+}
+.doc-emblem img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.doc-org {
+  flex: 1;
+  min-width: 0;
+}
+.doc-project {
+  color: var(--dim);
+  font: 500 10px/1.3 var(--font-head);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.doc-issuer {
+  margin-top: 5px;
+  font: 700 17px/1.2 var(--font-head);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.doc-meta {
+  flex: none;
+  text-align: right;
+}
+.doc-meta-label {
+  color: var(--dim);
+  font: 500 9px/1 var(--font-head);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.doc-meta-value {
+  margin-top: 4px;
+  font: 700 14px/1 var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.doc-barcode {
+  display: flex;
+  justify-content: flex-end;
+  height: 18px;
+  margin-top: 8px;
+}
+.doc-barcode span {
+  background: var(--ink);
+  opacity: 0.85;
+}
+.doc-barcode span:last-child {
+  margin-right: 0 !important;
+}
+
+/* --- title -------------------------------------------------------------------- */
+
+.doc-titleblock {
+  position: relative;
+  padding: 22px 0 6px;
+}
+.doc-title {
+  margin: 0;
+  color: var(--accent);
+  font: 700 30px/1.1 var(--font-head);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.theme-evrak .doc-title,
+.theme-kurumsal .doc-title {
+  color: var(--ink);
+}
+.doc-subject {
+  margin-top: 8px;
+  max-width: 78%;
+  font: 500 15px/1.35 var(--font-head);
+}
+.doc-subject-label {
+  margin-right: 10px;
+  color: var(--dim);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.doc-stamp {
+  position: absolute;
+  top: 16px;
+  right: 2px;
+  max-width: 38%;
+  padding: 6px 14px 5px;
+  border: 3px double var(--stamp);
+  border-radius: 4px;
+  color: var(--stamp);
+  font: 700 17px/1.15 var(--font-head);
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+  transform: rotate(-7deg);
+  opacity: 0.88;
+}
+
+/* --- sections ----------------------------------------------------------------- */
+
+.doc-sections {
+  flex: 1;
+}
+.doc-section {
+  margin-top: 20px;
+}
+.doc-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 11px;
+  font: 700 12px/1 var(--font-head);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.doc-section-no {
+  padding: 4px 6px 3px;
+  background: var(--accent);
+  color: var(--on-accent);
+  letter-spacing: 0.06em;
+  text-shadow: none;
+}
+.doc-section-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px 18px;
+}
+.doc-field {
+  grid-column: span 6;
+  min-width: 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+.doc-field.w-twothirds { grid-column: span 4; }
+.doc-field.w-half { grid-column: span 3; }
+.doc-field.w-third { grid-column: span 2; }
+.doc-field.f-table,
+.doc-field.f-image,
+.doc-field.f-signature {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.doc-label {
+  margin-bottom: 3px;
+  color: var(--dim);
+  font: 500 9.5px/1.3 var(--font-head);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.doc-value {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.doc-blank {
+  color: var(--dim);
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.doc-rich {
+  overflow-wrap: anywhere;
+}
+.doc-rich p {
+  margin: 0 0 8px;
+}
+.doc-rich > :last-child {
+  margin-bottom: 0;
+}
+.doc-rich ul,
+.doc-list {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.doc-rich li,
+.doc-list li {
+  position: relative;
+  padding-left: 16px;
+  margin-bottom: 3px;
+  overflow-wrap: anywhere;
+}
+.doc-rich li::before,
+.doc-list li::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 0.62em;
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+}
+.doc-list {
+  margin-bottom: 0;
+}
+
+.doc-redact {
+  background: var(--ink);
+  color: transparent;
+  text-shadow: none;
+  user-select: none;
+}
+
+.doc-badge {
+  display: inline-block;
+  padding: 2px 9px 1px;
+  border: 1px solid var(--accent);
+  background: var(--panel);
+  font: 700 11.5px/1.5 var(--font-head);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.doc-scale {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 2px;
+}
+.doc-pips {
+  display: flex;
+  gap: 3px;
+}
+.doc-pip {
+  width: 16px;
+  height: 11px;
+  border: 1px solid var(--accent);
+}
+.doc-pip.on {
+  background: var(--accent);
+}
+.doc-scale-num {
+  font: 700 12px/1 var(--font-mono);
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94em;
+}
+.doc-table th {
+  padding: 5px 8px 4px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--dim);
+  font: 700 9.5px/1.3 var(--font-head);
+  letter-spacing: 0.14em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.doc-table td {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.doc-figure {
+  margin: 0;
+}
+.doc-figure img {
+  display: block;
+  width: 100%;
+  max-height: 380px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.doc-figure figcaption {
+  margin-top: 4px;
+  color: var(--dim);
+  font-size: 0.86em;
+  font-style: italic;
+}
+.doc-noimage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  height: 100%;
+  border: 1px dashed var(--line);
+  color: var(--dim);
+  font: 500 9.5px/1 var(--font-head);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+/* A 1/3 image that opens a section sits beside the 2/3 fields after it
+   (the personnel photo). Its rows are sized by those fields, not the image. */
+.doc-field.is-portrait {
+  display: flex;
+  flex-direction: column;
+}
+.doc-field.is-portrait .doc-figure {
+  position: relative;
+  flex: 1;
+  min-height: 150px;
+}
+.doc-field.is-portrait .doc-figure img {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+}
+.doc-field.is-portrait .doc-figure figcaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 3px 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-style: normal;
+  text-shadow: none;
+}
+.doc-field.is-portrait .doc-noimage {
+  flex: 1;
+}
+
+.doc-sign {
+  padding-top: 2px;
+}
+.doc-sign-hand {
+  min-height: 34px;
+  padding: 0 4px 2px;
+  border-bottom: 1px solid var(--ink);
+  color: var(--accent);
+  font: italic 600 22px/1.4 var(--font-hand);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.theme-evrak .doc-sign-hand,
+.theme-kurumsal .doc-sign-hand {
+  color: #1c3d8f;
+}
+.doc-sign-name {
+  margin-top: 5px;
+  font: 700 12px/1.3 var(--font-head);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.doc-sign-title {
+  color: var(--dim);
+  font-size: 0.9em;
+}
+.doc-sign-hash {
+  margin-top: 3px;
+  color: var(--dim);
+  font: 400 8.5px/1.3 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* --- footer ------------------------------------------------------------------- */
+
+.doc-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 26px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  color: var(--dim);
+  font: 400 9px/1.3 var(--font-mono);
+  letter-spacing: 0.06em;
+}
+.doc-foot-hash {
+  flex: none;
+}
+
+/* --- print -------------------------------------------------------------------- */
+
+#print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  /* A long report runs onto a second sheet; keep that sheet the paper colour. */
+  body:has(#print-root .theme-konsol) { background: #0b131a !important; }
+  body:has(#print-root .theme-amber) { background: #0f0a04 !important; }
+  body:has(#print-root .theme-evrak) { background: #ebe5d4 !important; }
+  body:has(#print-root .theme-kurumsal) { background: #f7f8fa !important; }
+
+  #root {
+    display: none !important;
+  }
+  #print-root {
+    display: block;
+  }
+  .doc {
+    width: 210mm;
+    min-height: 297mm;
+    overflow: visible;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .doc-section-head {
+    break-after: avoid;
+  }
+  .doc-field:not(.f-longtext),
+  .doc-table tr,
+  .doc-foot {
+    break-inside: avoid;
+  }
+}
