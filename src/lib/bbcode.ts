@@ -7,16 +7,16 @@ import { richToPlain } from './markup';
 import { asImage, asNumber, asSignature, asText, filledRows, isEmpty, listItems } from './values';
 
 // The document's own markup (markup.tsx): **bold**, *italic*, ||hidden||, and "- " lines as bullets
-const INLINE = /(\*\*[^*\n]+\*\*|\|\|[^|\n]+\|\||\*[^*\n]+\*)/g;
+const STYLE = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g;
 const BULLET = /^\s*[-•]\s+/;
 
-/** One piece of text: bold and italic carried over, hidden words as █ like the text export. */
+/** One piece of text: hidden words as █ like the text export, first, so no bold or italic around them lets
+ *  them through; then bold and italic carried over. */
 export function inlineToBBCode(text: string): string {
-  return text
-    .split(INLINE)
+  return richToPlain(text)
+    .split(STYLE)
     .map((part) => {
       if (part.startsWith('**') && part.endsWith('**') && part.length > 4) return `[b]${part.slice(2, -2)}[/b]`;
-      if (part.startsWith('||') && part.endsWith('||') && part.length > 4) return richToPlain(part);
       if (part.startsWith('*') && part.endsWith('*') && part.length > 2) return `[i]${part.slice(1, -1)}[/i]`;
       return part;
     })
@@ -120,10 +120,22 @@ export function reportToBBCode(report: Report): string {
   return out.join('\n');
 }
 
+/** The length the forum checks: the browser sends every line break as \r\n, two characters. */
+const forumLength = (text: string) => text.length + (text.match(/\n/g)?.length ?? 0);
+
 /** Text that fits the forum's message limit: cut at the last whole line, with a note that the PDF has the rest. */
 export function fitMessage(text: string, limit: number, note: string): string {
-  if (limit <= 0 || text.length <= limit) return text;
-  const room = Math.max(0, limit - note.length - 1);
-  const cut = text.lastIndexOf('\n', room);
-  return `${text.slice(0, cut > 0 ? cut : room)}\n${note}`;
+  if (limit <= 0 || forumLength(text) <= limit) return text;
+  // Room left once the note has a line of its own
+  const room = Math.max(0, limit - forumLength(note) - 2);
+  let end = 0;
+  for (let used = 0; end < text.length; end++) {
+    used += text[end] === '\n' ? 2 : 1;
+    if (used > room) break;
+  }
+  const head = text.slice(0, end);
+  const lastBreak = head.lastIndexOf('\n');
+  // Back to the last whole line, unless the head already ends at one (or has none: one long line is cut)
+  const kept = text[end] === '\n' || lastBreak <= 0 ? head : head.slice(0, lastBreak);
+  return `${kept}\n${note}`;
 }

@@ -127,6 +127,13 @@ describe('reportToBBCode', () => {
     expect(out).not.toMatch(/Mira|Voss|Lena/);
   });
 
+  it('never lets a hidden word through bold or italic either', () => {
+    expect(inlineToBBCode('**Şüpheli: ||Ahmet Yılmaz||**')).toBe('[b]Şüpheli: █████ ██████[/b]');
+    expect(inlineToBBCode('*not: ||Ahmet||*')).toBe('[i]not: █████[/i]');
+    // Markup that overlaps: the hidden part wins, as in the text export
+    expect(inlineToBBCode('*a ||Ahmet* Yılmaz||')).toBe('*a ██████ ██████');
+  });
+
   it('a field named like its section loses its label', () => {
     expect(out).toContain('[b]02 · Anlatım[/b]\nSaat 04:10');
   });
@@ -147,19 +154,32 @@ describe('reportToBBCode', () => {
 
 describe('fitMessage', () => {
   const note = '(devamı PDF’te)';
+  // What the forum counts: the browser sends every line break as \r\n, two characters
+  const forumLength = (text: string) => text.length + (text.match(/\n/g)?.length ?? 0);
+  const text = ['satır bir', 'satır iki', 'satır üç', 'satır dört'].join('\n'); // 39 characters, 42 for the forum
+
   it('leaves a short text alone', () => {
     expect(fitMessage('kısa', 100, note)).toBe('kısa');
     expect(fitMessage('sınırsız', 0, note)).toBe('sınırsız');
+    expect(fitMessage(text, 42, note)).toBe(text);
   });
-  it('cuts at the last whole line and adds the note, within the limit', () => {
-    const text = ['satır bir', 'satır iki', 'satır üç', 'satır dört'].join('\n');
-    const fitted = fitMessage(text, 36, note); // 39 characters: one line too many
+  it('counts line breaks as the forum does, then cuts at the last whole line and adds the note', () => {
+    const fitted = fitMessage(text, 40, note);
     expect(fitted).toBe(`satır bir\nsatır iki\n${note}`);
-    expect(fitted.length).toBeLessThanOrEqual(36);
+    expect(forumLength(fitted)).toBeLessThanOrEqual(40);
+  });
+  it('stays within the limit whatever it is', () => {
+    for (let limit = 20; limit <= 41; limit++) {
+      const fitted = fitMessage(text, limit, note);
+      expect(forumLength(fitted)).toBeLessThanOrEqual(limit);
+      expect(text.startsWith(fitted.slice(0, fitted.lastIndexOf('\n')))).toBe(true);
+    }
+    // A line that ends exactly where the room does is kept
+    expect(fitMessage(text, 9 + 2 + 9 + 2 + note.length, note)).toBe(`satır bir\nsatır iki\n${note}`);
   });
   it('cuts mid-line when the first line alone is too long', () => {
     const fitted = fitMessage('x'.repeat(100), 30, note);
-    expect(fitted.length).toBeLessThanOrEqual(30);
+    expect(forumLength(fitted)).toBeLessThanOrEqual(30);
     expect(fitted.endsWith(note)).toBe(true);
   });
 });

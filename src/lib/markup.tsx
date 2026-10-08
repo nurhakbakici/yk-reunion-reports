@@ -1,10 +1,13 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
 // The small markup available in long-text fields:
 //   **bold**   *italic*   ||redacted||   lines starting with "- " become bullets
 // ||…|| is Discord's spoiler syntax, which the players already know.
 
-const INLINE = /(\*\*[^*\n]+\*\*|\|\|[^|\n]+\|\||\*[^*\n]+\*)/g;
+const HIDDEN = /\|\|([^|\n]+)\|\|/g;
+const STYLE = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g;
+// Where a hidden part stood while bold and italic are read: private-use characters around its number
+const SLOT = /\uE000(\d+)\uE001/;
 
 /** A redaction keeps the shape of the words but never the words themselves, so
  *  the hidden text cannot be selected back out of a PDF. */
@@ -24,18 +27,22 @@ function Redacted({ text }: { text: string }) {
   );
 }
 
+/** Hidden parts are taken out first, the same ones richToPlain hides, so no bold or italic around them (or
+ *  overlapping them) lets the words through; then bold and italic are read from what is left. */
 export function renderInline(text: string): ReactNode[] {
-  return text.split(INLINE).map((part, i) => {
+  const hidden: string[] = [];
+  const marked = text.replace(HIDDEN, (_, words: string) => `\uE000${hidden.push(words) - 1}\uE001`);
+  const withHidden = (part: string): ReactNode[] =>
+    part.split(SLOT).map((piece, i) => (i % 2 ? <Redacted key={i} text={hidden[Number(piece)] ?? ''} /> : piece));
+
+  return marked.split(STYLE).map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith('||') && part.endsWith('||') && part.length > 4) {
-      return <Redacted key={i} text={part.slice(2, -2)} />;
+      return <strong key={i}>{withHidden(part.slice(2, -2))}</strong>;
     }
     if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
-      return <em key={i}>{part.slice(1, -1)}</em>;
+      return <em key={i}>{withHidden(part.slice(1, -1))}</em>;
     }
-    return part;
+    return <Fragment key={i}>{withHidden(part)}</Fragment>;
   });
 }
 
