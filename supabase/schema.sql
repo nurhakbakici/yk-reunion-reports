@@ -1,28 +1,31 @@
--- Shared campaign archive for the Ankha report terminal.
--- Run this once in the Supabase dashboard: SQL Editor → New query → paste → Run.
--- It is safe to run again; it replaces functions and policies and keeps data.
+-- Personal report archive for the Ankha report terminal.
+-- Run this in the Supabase dashboard: SQL Editor → New query → paste → Run.
+-- It is safe to run again, and it upgrades an earlier install (the shared
+-- campaign archive) in place: tables are renamed and reshaped, data is kept.
 --
 -- Access rules, in one place:
---   * Anyone (no login) can read reports published to "everyone".
---   * Reports published to "gms" are readable only by their author and by GMs.
---   * Publishing needs campaign membership (the join code) or GM status (the GM code).
---     There are no emails or passwords: each browser gets an anonymous identity.
---   * Authors can change or remove their own reports. GMs can remove any report.
---   * Nobody becomes a member or a GM without the matching code; see the end of this file.
+--   * People sign in with a user name and a password; accounts are made in the app.
+--   * A signed-in user can read, change and remove only their own archived reports.
+--   * Saving needs campaign membership: the join code, entered once per account.
+--   * Nobody can read anyone else's reports, signed in or not.
+--
+-- Two settings in the dashboard go with this file (Authentication → Sign In / Providers):
+--   * Email: on, with "Confirm email" switched OFF. The app signs people in with
+--     an address made up from their user name; nobody is there to confirm it.
+--   * Allow anonymous sign-ins: off. The app no longer uses them.
 
 -- --- profiles ---------------------------------------------------------------
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text not null default '',
-  is_gm boolean not null default false,
   is_member boolean not null default false,
   created_at timestamptz not null default now()
 );
 
 alter table public.profiles enable row level security;
 
--- Every new identity gets a profile; the name is filled in by the app right after.
+-- Every new account gets a profile, named as the person typed their user name.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -31,7 +34,10 @@ set search_path = ''
 as $$
 begin
   insert into public.profiles (id, display_name)
-  values (new.id, left(split_part(coalesce(new.email, ''), '@', 1), 60))
+  values (
+    new.id,
+    left(coalesce(nullif(trim(new.raw_user_meta_data ->> 'display_name'), ''), split_part(coalesce(new.email, ''), '@', 1)), 60)
+  )
   on conflict (id) do nothing;
   return new;
 end;
@@ -42,43 +48,28 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- These run with the owner's rights so that policies can ask about the caller
+-- Runs with the owner's rights so that policies can ask about the caller
 -- without the profiles table's own policies getting in the way.
-create or replace function public.is_gm()
+create or replace function public.is_member()
 returns boolean
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce((select p.is_gm from public.profiles p where p.id = auth.uid()), false);
-$$;
-
-create or replace function public.can_publish()
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce((select p.is_gm or p.is_member from public.profiles p where p.id = auth.uid()), false);
+  select coalesce((select p.is_member from public.profiles p where p.id = auth.uid()), false);
 $$;
 
 drop policy if exists "profiles: read own, GMs read all" on public.profiles;
-create policy "profiles: read own, GMs read all" on public.profiles
+drop policy if exists "profiles: read own" on public.profiles;
+create policy "profiles: read own" on public.profiles
   for select to authenticated
-  using (id = auth.uid() or public.is_gm());
+  using (id = auth.uid());
 
+-- Nothing in a profile is writable from the app; membership comes from join_campaign().
 drop policy if exists "profiles: rename self" on public.profiles;
-create policy "profiles: rename self" on public.profiles
-  for update to authenticated
-  using (id = auth.uid())
-  with check (id = auth.uid());
-
--- Only the display name is writable from the app. is_gm and is_member are not.
 revoke all on public.profiles from anon, authenticated;
 grant select on public.profiles to authenticated;
-grant update (display_name) on public.profiles to authenticated;
 
 -- --- join code --------------------------------------------------------------
 
@@ -91,17 +82,14 @@ create table if not exists public.app_settings (
 alter table public.app_settings enable row level security;
 revoke all on public.app_settings from anon, authenticated;
 
--- Random codes on first install: one for players, one for game masters.
--- Read or change them with the queries at the end.
+-- A random code on first install. Read or change it with the queries at the end.
 insert into public.app_settings (key, value)
 values ('join_code', substr(md5(random()::text || clock_timestamp()::text), 1, 10))
 on conflict (key) do nothing;
 
-insert into public.app_settings (key, value)
-values ('gm_code', substr(md5(random()::text || clock_timestamp()::text || 'gm'), 1, 14))
-on conflict (key) do nothing;
+-- The shared archive had game masters and a code for them; the personal one does not.
+delete from public.app_settings where key = 'gm_code';
 
--- The player code lets the caller publish; the GM code also makes them a GM.
 create or replace function public.join_campaign(code text)
 returns boolean
 language plpgsql
@@ -110,39 +98,41 @@ set search_path = ''
 as $$
 declare
   given text := lower(trim(coalesce(code, '')));
-  player_code text;
-  gm_code text;
+  expected text;
 begin
   if auth.uid() is null then
     return false;
   end if;
-  select lower(s.value) into player_code from public.app_settings s where s.key = 'join_code';
-  select lower(s.value) into gm_code from public.app_settings s where s.key = 'gm_code';
-  if given <> '' and given = gm_code then
-    update public.profiles set is_gm = true, is_member = true where id = auth.uid();
-    return true;
+  select lower(s.value) into expected from public.app_settings s where s.key = 'join_code';
+  if given = '' or expected is null or given <> expected then
+    perform pg_sleep(1); -- makes guessing slow
+    return false;
   end if;
-  if given <> '' and given = player_code then
-    update public.profiles set is_member = true where id = auth.uid();
-    return true;
-  end if;
-  perform pg_sleep(1); -- makes guessing slow
-  return false;
+  update public.profiles set is_member = true where id = auth.uid();
+  return true;
 end;
 $$;
 
 revoke all on function public.join_campaign(text) from public, anon;
 grant execute on function public.join_campaign(text) to authenticated;
 
--- --- published reports ------------------------------------------------------
+-- --- archived reports -------------------------------------------------------
 
-create table if not exists public.published_reports (
+-- An earlier install called this table published_reports.
+do $$
+begin
+  if to_regclass('public.published_reports') is not null and to_regclass('public.archived_reports') is null then
+    alter table public.published_reports rename to archived_reports;
+  end if;
+end;
+$$;
+
+create table if not exists public.archived_reports (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references auth.users (id) on delete cascade,
-  author_name text not null default '',
-  -- The report's id in the author's own library; publishing again updates the same row.
+  -- The report's id in the author's own library; saving again updates the same row.
   local_id text not null,
-  visibility text not null default 'everyone' check (visibility in ('everyone', 'gms')),
+  status text not null default 'draft',
   title text not null default '',
   doc_no text not null default '',
   template_name text not null default '',
@@ -154,13 +144,18 @@ create table if not exists public.published_reports (
   unique (author_id, local_id)
 );
 
-create index if not exists published_reports_updated_idx on public.published_reports (updated_at desc);
+alter table public.archived_reports add column if not exists status text not null default 'draft';
+alter table public.archived_reports drop constraint if exists archived_reports_status_check;
+alter table public.archived_reports
+  add constraint archived_reports_status_check check (status in ('draft', 'final'));
 
-alter table public.published_reports enable row level security;
+create index if not exists archived_reports_author_idx on public.archived_reports (author_id, updated_at desc);
+drop index if exists public.published_reports_updated_idx;
 
--- The author and the author's name are always taken from the login, never from
--- what the app sends, so nobody can publish under someone else's name.
-create or replace function public.stamp_published_report()
+alter table public.archived_reports enable row level security;
+
+-- The owner is always taken from the login, never from what the app sends.
+create or replace function public.stamp_archived_report()
 returns trigger
 language plpgsql
 security definer
@@ -174,10 +169,6 @@ begin
     new.author_id := old.author_id;
     new.created_at := old.created_at;
   end if;
-  new.author_name := coalesce(
-    (select nullif(trim(p.display_name), '') from public.profiles p where p.id = new.author_id),
-    'İsimsiz'
-  );
   new.updated_at := now();
   new.title := left(new.title, 200);
   new.doc_no := left(new.doc_no, 60);
@@ -190,47 +181,75 @@ begin
 end;
 $$;
 
-drop trigger if exists stamp_published_report on public.published_reports;
-create trigger stamp_published_report
-  before insert or update on public.published_reports
-  for each row execute function public.stamp_published_report();
+drop trigger if exists stamp_published_report on public.archived_reports;
+drop trigger if exists stamp_archived_report on public.archived_reports;
+create trigger stamp_archived_report
+  before insert or update on public.archived_reports
+  for each row execute function public.stamp_archived_report();
 
-drop policy if exists "reports: read public, own, or as GM" on public.published_reports;
-create policy "reports: read public, own, or as GM" on public.published_reports
-  for select to anon, authenticated
-  using (visibility = 'everyone' or author_id = auth.uid() or public.is_gm());
+drop policy if exists "reports: read public, own, or as GM" on public.archived_reports;
+drop policy if exists "reports: members publish" on public.archived_reports;
+drop policy if exists "reports: authors update own" on public.archived_reports;
+drop policy if exists "reports: authors and GMs remove" on public.archived_reports;
 
-drop policy if exists "reports: members publish" on public.published_reports;
-create policy "reports: members publish" on public.published_reports
+drop policy if exists "reports: read own" on public.archived_reports;
+create policy "reports: read own" on public.archived_reports
+  for select to authenticated
+  using (author_id = auth.uid());
+
+drop policy if exists "reports: members save" on public.archived_reports;
+create policy "reports: members save" on public.archived_reports
   for insert to authenticated
-  with check (author_id = auth.uid() and public.can_publish());
+  with check (author_id = auth.uid() and public.is_member());
 
-drop policy if exists "reports: authors update own" on public.published_reports;
-create policy "reports: authors update own" on public.published_reports
+drop policy if exists "reports: update own" on public.archived_reports;
+create policy "reports: update own" on public.archived_reports
   for update to authenticated
   using (author_id = auth.uid())
-  with check (author_id = auth.uid() and public.can_publish());
+  with check (author_id = auth.uid() and public.is_member());
 
-drop policy if exists "reports: authors and GMs remove" on public.published_reports;
-create policy "reports: authors and GMs remove" on public.published_reports
+drop policy if exists "reports: remove own" on public.archived_reports;
+create policy "reports: remove own" on public.archived_reports
   for delete to authenticated
-  using (author_id = auth.uid() or public.is_gm());
+  using (author_id = auth.uid());
 
-revoke all on public.published_reports from anon, authenticated;
-grant select on public.published_reports to anon, authenticated;
-grant insert, update, delete on public.published_reports to authenticated;
+revoke all on public.archived_reports from anon, authenticated;
+grant select, insert, update, delete on public.archived_reports to authenticated;
+
+-- What the shared archive needed and the personal one does not.
+alter table public.archived_reports drop column if exists visibility;
+alter table public.archived_reports drop column if exists author_name;
+drop function if exists public.stamp_published_report();
+drop function if exists public.is_gm();
+drop function if exists public.can_publish();
+alter table public.profiles drop column if exists is_gm;
 
 -- --- running the campaign (use these in the SQL Editor) -----------------------
 --
--- See both codes: join_code is for players, gm_code for game masters.
---   select key, value from public.app_settings;
+-- See the join code to hand to your players:
+--   select value from public.app_settings where key = 'join_code';
 --
--- Change a code (people who already joined keep their rights):
+-- Change the join code (people who already joined keep their right to save):
 --   update public.app_settings set value = 'new-code-here' where key = 'join_code';
---   update public.app_settings set value = 'new-gm-code' where key = 'gm_code';
 --
--- See who has joined:
---   select id, display_name, is_gm, is_member, created_at from public.profiles order by created_at;
+-- See who has an account, and how much they keep in the archive:
+--   select p.display_name, u.email, p.is_member, count(r.id) as reports,
+--          pg_size_pretty(coalesce(sum(octet_length(r.report::text)), 0)) as size
+--   from public.profiles p
+--   join auth.users u on u.id = p.id
+--   left join public.archived_reports r on r.author_id = p.id
+--   group by p.display_name, u.email, p.is_member
+--   order by p.display_name;
 --
--- Remove someone's right to publish (take the id from the list above):
---   update public.profiles set is_member = false, is_gm = false where id = '<id>';
+-- Someone forgot their password: set a new one, tell them, and have them change
+-- it under their name in the app. Their sign-in address is the email column above.
+--   update auth.users set encrypted_password = crypt('new-password', gen_salt('bf'))
+--   where email = 'the-address-from-the-list-above';
+--
+-- Take away someone's right to save, or delete their account with everything in it:
+--   update public.profiles set is_member = false where display_name = 'Their Name';
+--   delete from auth.users where email = 'the-address-from-the-list-above';
+--
+-- Clear out what is left of the shared archive: the browser-only identities it
+-- used, together with every report they published.
+--   delete from auth.users where is_anonymous;

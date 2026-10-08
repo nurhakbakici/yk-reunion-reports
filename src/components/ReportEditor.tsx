@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { cloudEnabled } from '../cloud/config';
-import { useCloud } from '../cloud/store';
+import { isStale, useCloud } from '../cloud/store';
 import { useT, type Key } from '../i18n';
 import { clone, downloadText, makeDocNo } from '../lib/util';
 import { navigate } from '../router';
@@ -9,7 +9,7 @@ import { CLASSIFICATIONS, type Classification, type FieldDef } from '../types';
 import { ExportButtons, fileBaseFor } from './ExportButtons';
 import { FieldInput } from './FieldInput';
 import { PreviewPane } from './PreviewPane';
-import { PublishDialog } from './PublishDialog';
+import { SaveDialog } from './SaveDialog';
 
 /** Wide controls always take a full form row, whatever their width in the document. */
 function formSpan(def: FieldDef): string {
@@ -25,9 +25,9 @@ export function ReportEditor({ id }: { id: string }) {
   const setValue = useStore((s) => s.setValue);
   const duplicateReport = useStore((s) => s.duplicateReport);
   const deleteReport = useStore((s) => s.deleteReport);
-  const published = useCloud((s) => s.mine.some((e) => e.localId === id));
+  const archived = useCloud((s) => s.list.find((e) => e.localId === id));
 
-  const [publishing, setPublishing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'form' | 'preview'>('form');
 
   const current = report ? findTemplate(templates, report.template.id) : undefined;
@@ -76,8 +76,8 @@ export function ReportEditor({ id }: { id: string }) {
         <div className="editor-actions">
           <ExportButtons report={report} />
           {cloudEnabled && (
-            <button type="button" className="btn" onClick={() => setPublishing(true)}>
-              {published ? t('archive.published') : t('archive.publish')}
+            <button type="button" className="btn" onClick={() => setSaving(true)}>
+              {!archived ? t('archive.save') : isStale(archived, report) ? t('archive.stale') : t('archive.saved')}
             </button>
           )}
           <button
@@ -214,7 +214,7 @@ export function ReportEditor({ id }: { id: string }) {
         <PreviewPane report={report} />
       </div>
 
-      {publishing && <PublishDialog report={report} onClose={() => setPublishing(false)} />}
+      {saving && <SaveDialog report={report} onClose={() => setSaving(false)} />}
     </main>
   );
 }

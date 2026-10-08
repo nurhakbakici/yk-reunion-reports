@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useCloud } from '../cloud/store';
-import { useT } from '../i18n';
+import { MIN_PASSWORD } from '../cloud/login';
+import { useCloud, type LoginResult } from '../cloud/store';
+import { useT, type Key } from '../i18n';
 import { useStore } from '../store';
 
 /** Shared frame for the small dialogs: closes on Escape and on a click outside. */
@@ -26,53 +27,100 @@ export function Dialog({ title, onClose, children }: { title: string; onClose: (
   );
 }
 
-/** First visit: a name to sign reports with and the code that lets this browser publish. */
-function EnterForm() {
+const LOGIN_ERRORS: Record<Exclude<LoginResult['code'], 'ok' | 'bad-code'>, Key> = {
+  'bad-name': 'account.badName',
+  'bad-login': 'account.badLogin',
+  taken: 'account.taken',
+  weak: 'account.weak',
+  unconfirmed: 'account.unconfirmed',
+  failed: 'account.failed',
+};
+
+/** Signing in, or making an account: the same form with two more fields. */
+function LoginForm() {
   const t = useT();
-  const enter = useCloud((s) => s.enter);
+  const signIn = useCloud((s) => s.signIn);
+  const signUp = useCloud((s) => s.signUp);
   const showToast = useStore((s) => s.showToast);
+  const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [again, setAgain] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const complete = name.trim() && password && (!creating || (again && code.trim()));
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (busy || !name.trim() || !code.trim()) return;
+    if (busy || !complete) return;
+    if (creating && password.length < MIN_PASSWORD) return setError(t('account.weak'));
+    if (creating && password !== again) return setError(t('account.mismatch'));
     setBusy(true);
     setError('');
-    const result = await enter(name, code);
-    // By now the dialog may already show the joined view, so the outcome goes in a toast too.
-    if (result === 'ok') showToast(t('account.joined'));
-    else if (result === 'bad-code') showToast(t('account.badJoin'));
-    else setError(t('account.enterFailed'));
+    const result = creating ? await signUp(name, password, code) : await signIn(name, password);
+    // On success the dialog has already become the signed-in view, so say the rest in a toast.
+    if (result.code === 'ok') {
+      if (creating) showToast(t('account.created'));
+    } else if (result.code === 'bad-code') {
+      showToast(t('account.createdNoCode'));
+    } else {
+      setError(t(LOGIN_ERRORS[result.code]) + (result.detail ? ` (${result.detail})` : ''));
+    }
     setBusy(false);
   };
 
   return (
     <form className="stack" onSubmit={submit}>
-      <p className="dialog-text">{t('account.why')}</p>
+      <div className="segmented" role="group">
+        <button type="button" aria-pressed={!creating} onClick={() => (setCreating(false), setError(''))}>
+          {t('account.signIn')}
+        </button>
+        <button type="button" aria-pressed={creating} onClick={() => (setCreating(true), setError(''))}>
+          {t('account.create')}
+        </button>
+      </div>
+      <p className="dialog-text">{t(creating ? 'account.whyCreate' : 'account.why')}</p>
       <label className="field">
-        <span className="field-label">{t('account.displayName')}</span>
-        <input type="text" maxLength={60} autoComplete="nickname" value={name} onChange={(e) => setName(e.target.value)} />
-        <span className="field-help">{t('account.displayNameHint')}</span>
+        <span className="field-label">{t('account.name')}</span>
+        <input type="text" maxLength={40} autoComplete="username" value={name} onChange={(e) => setName(e.target.value)} />
+        {creating && <span className="field-help">{t('account.nameHint')}</span>}
       </label>
       <label className="field">
-        <span className="field-label">{t('account.joinCode')}</span>
-        <input type="text" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />
-        <span className="field-help">{t('account.joinHint')}</span>
+        <span className="field-label">{t('account.password')}</span>
+        <input
+          type="password"
+          autoComplete={creating ? 'new-password' : 'current-password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
       </label>
+      {creating && (
+        <>
+          <label className="field">
+            <span className="field-label">{t('account.passwordAgain')}</span>
+            <input type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />
+            <span className="field-help">{t('account.passwordHint')}</span>
+          </label>
+          <label className="field">
+            <span className="field-label">{t('account.joinCode')}</span>
+            <input type="text" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />
+            <span className="field-help">{t('account.joinHint')}</span>
+          </label>
+        </>
+      )}
       {error && <p className="form-error">{error}</p>}
       <div className="dialog-actions">
-        <button type="submit" className="btn btn-primary" disabled={busy || !name.trim() || !code.trim()}>
-          {busy ? t('export.working') : t('account.join')}
+        <button type="submit" className="btn btn-primary" disabled={busy || !complete}>
+          {busy ? t('export.working') : t(creating ? 'account.create' : 'account.signIn')}
         </button>
       </div>
     </form>
   );
 }
 
-/** Join-code entry, shown wherever a signed-in user still lacks the right to publish. */
+/** Campaign-code entry, shown wherever a signed-in user still lacks the right to save. */
 export function JoinForm() {
   const t = useT();
   const join = useCloud((s) => s.join);
@@ -109,54 +157,70 @@ export function JoinForm() {
   );
 }
 
+function PasswordForm() {
+  const t = useT();
+  const changePassword = useCloud((s) => s.changePassword);
+  const showToast = useStore((s) => s.showToast);
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy || !password) return;
+    if (password.length < MIN_PASSWORD) return setError(t('account.weak'));
+    setBusy(true);
+    setError('');
+    const ok = await changePassword(password);
+    setBusy(false);
+    if (!ok) return setError(t('account.failed'));
+    setPassword('');
+    showToast(t('account.passwordChanged'));
+  };
+
+  return (
+    <form className="stack" onSubmit={submit}>
+      <label className="field">
+        <span className="field-label">{t('account.newPassword')}</span>
+        <span className="field-row">
+          <input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="submit" className="btn" disabled={busy || !password}>
+            {t('account.change')}
+          </button>
+        </span>
+      </label>
+      {error && <p className="form-error">{error}</p>}
+    </form>
+  );
+}
+
 function SignedIn({ onClose }: { onClose: () => void }) {
   const t = useT();
-  const profile = useCloud((s) => s.profile);
-  const rename = useCloud((s) => s.rename);
+  const user = useCloud((s) => s.user);
+  const member = useCloud((s) => s.member);
   const signOut = useCloud((s) => s.signOut);
-  const showToast = useStore((s) => s.showToast);
-  const [name, setName] = useState(profile?.displayName ?? '');
-
-  // The profile arrives a moment after sign-in; fill the box when it does.
-  useEffect(() => {
-    if (profile) setName(profile.displayName);
-  }, [profile?.displayName]);
-
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    showToast(t((await rename(name)) ? 'account.saved' : 'publish.failed'));
-  };
 
   return (
     <div className="stack">
       <p className="dialog-text">
-        {t('account.device')}
-        {profile?.isGm && <span className="chip chip-accent">{t('account.gm')}</span>}
-        {profile && !profile.isGm && profile.isMember && <span className="chip">{t('account.member')}</span>}
+        {t('account.signedInAs', { name: user?.name ?? '' })}
+        {member && <span className="chip">{t('account.member')}</span>}
       </p>
 
-      <form onSubmit={save}>
-        <label className="field">
-          <span className="field-label">{t('account.displayName')}</span>
-          <span className="field-row">
-            <input type="text" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
-            <button type="submit" className="btn" disabled={!name.trim() || name.trim() === profile?.displayName}>
-              {t('account.save')}
-            </button>
-          </span>
-          <span className="field-help">{t('account.displayNameHint')}</span>
-        </label>
-      </form>
+      {member === false && (
+        <>
+          <p className="dialog-text">{t('save.needJoin')}</p>
+          <JoinForm />
+        </>
+      )}
 
-      {/* A member can still enter the GM code here to be promoted. */}
-      {profile && !profile.isGm && <JoinForm />}
+      <PasswordForm />
 
       <div className="dialog-actions">
         <button
           type="button"
           className="btn"
           onClick={() => {
-            if (!window.confirm(t('account.confirmForget'))) return;
             void signOut();
             onClose();
           }}
@@ -172,8 +236,8 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
   const t = useT();
   const user = useCloud((s) => s.user);
   return (
-    <Dialog title={user ? t('account.title') : t('account.signIn')} onClose={onClose}>
-      {user ? <SignedIn onClose={onClose} /> : <EnterForm />}
+    <Dialog title={t('account.title')} onClose={onClose}>
+      {user ? <SignedIn onClose={onClose} /> : <LoginForm />}
     </Dialog>
   );
 }

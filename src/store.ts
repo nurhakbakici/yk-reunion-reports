@@ -135,7 +135,8 @@ interface State {
   duplicateReport: (id: string, suffix: string) => string | null;
   deleteReport: (id: string) => void;
   /** Adds someone else's report to the library as a new report of your own. */
-  adoptReport: (report: Report) => string;
+  /** Puts a report from the archive into the library under its own id, replacing the copy that is there. */
+  restoreReport: (report: Report) => void;
 
   createTemplate: (from: Template | null, name: string) => string;
   patchTemplate: (id: string, patch: Partial<Omit<Template, 'id'>>) => void;
@@ -259,12 +260,10 @@ export const useStore = create<State>((set, get) => ({
     void db.del('reports', id);
   },
 
-  adoptReport(report) {
-    const now = Date.now();
-    const copy: Report = { ...clone(report), id: uid('rep-'), createdAt: now, updatedAt: now };
-    set({ reports: [copy, ...get().reports] });
+  restoreReport(report) {
+    const copy = clone(report);
+    set({ reports: [copy, ...get().reports.filter((r) => r.id !== copy.id)] });
     void db.put('reports', copy);
-    return copy.id;
   },
 
   createTemplate(from, name) {

@@ -1,45 +1,60 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { CloudError, useCloud, type ArchiveEntry } from '../cloud/store';
+import { CloudError, useCloud, type ArchiveEntry, type Status } from '../cloud/store';
 import { useT, type Key } from '../i18n';
 import { navigate } from '../router';
 import { useStore } from '../store';
 import type { Report } from '../types';
+import { AccountDialog } from './AccountDialog';
 import { ExportButtons } from './ExportButtons';
 import { PreviewPane } from './PreviewPane';
 
-type Filter = 'all' | 'mine' | 'gms';
+type Filter = 'all' | Status;
 
 function classLabel(t: ReturnType<typeof useT>, classification: string): string | null {
   const known = ['acik', 'hizmete-ozel', 'gizli', 'cok-gizli'];
   return known.includes(classification) ? t(`class.${classification}` as Key) : null;
 }
 
-/** Everything published to the shared archive that this visitor is allowed to see. */
+/** The archive belongs to whoever is signed in; without that there is nothing to show but the way in. */
+function SignInPrompt() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="empty">
+      <p>{t('archive.signedOut')}</p>
+      <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
+        {t('account.signIn')}
+      </button>
+      {open && <AccountDialog onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+/** The signed-in user's own archived reports, drafts and finished ones. */
 export function ArchiveView() {
   const t = useT();
   const lang = useStore((s) => s.lang);
+  const ready = useCloud((s) => s.ready);
+  const user = useCloud((s) => s.user);
   const list = useCloud((s) => s.list);
   const listState = useCloud((s) => s.listState);
   const refreshList = useCloud((s) => s.refreshList);
-  const user = useCloud((s) => s.user);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
 
+  // Another device may have saved something since this one last looked.
   useEffect(() => {
     void refreshList();
-  }, []);
+  }, [user?.id]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLocaleLowerCase(lang);
     return list.filter((e) => {
-      if (filter === 'mine' && e.authorId !== user?.id) return false;
-      if (filter === 'gms' && e.visibility !== 'gms') return false;
+      if (filter !== 'all' && e.status !== filter) return false;
       if (!q) return true;
-      return [e.title, e.authorName, e.docNo, e.templateName].some((v) => v.toLocaleLowerCase(lang).includes(q));
+      return [e.title, e.docNo, e.templateName].some((v) => v.toLocaleLowerCase(lang).includes(q));
     });
-  }, [list, query, filter, user?.id, lang]);
-
-  const hasRestricted = list.some((e) => e.visibility === 'gms');
+  }, [list, query, filter, lang]);
 
   return (
     <main className="page">
@@ -50,7 +65,11 @@ export function ArchiveView() {
         </div>
       </div>
 
-      {listState === 'error' ? (
+      {!ready ? (
+        <p className="group-empty">{t('archive.loading')}</p>
+      ) : !user ? (
+        <SignInPrompt />
+      ) : listState === 'error' ? (
         <div className="empty">
           <p>{t('archive.loadFailed')}</p>
           <button type="button" className="btn" onClick={() => void refreshList()}>
@@ -73,15 +92,13 @@ export function ArchiveView() {
               aria-label={t('archive.search')}
               onChange={(e) => setQuery(e.target.value)}
             />
-            {(user || hasRestricted) && (
-              <div className="segmented" role="group">
-                {(['all', ...(user ? ['mine'] : []), ...(hasRestricted ? ['gms'] : [])] as Filter[]).map((f) => (
-                  <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>
-                    {t(`archive.filter.${f}` as Key)}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="segmented" role="group">
+              {(['all', 'draft', 'final'] as Filter[]).map((f) => (
+                <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>
+                  {t(f === 'all' ? 'archive.filter.all' : (`archive.status.${f}` as Key))}
+                </button>
+              ))}
+            </div>
           </div>
 
           {shown.length === 0 ? (
@@ -112,34 +129,34 @@ function ArchiveRow({ entry }: { entry: ArchiveEntry }) {
         </span>
       </span>
       <span className="archive-row-chips">
-        {entry.visibility === 'gms' && <span className="chip chip-accent">{t('archive.gmOnly')}</span>}
+        <span className={entry.status === 'final' ? 'chip chip-accent' : 'chip'}>{t(`archive.status.${entry.status}` as Key)}</span>
         {label && <span className="chip">{label}</span>}
       </span>
       <span className="archive-row-meta">
-        <span>{entry.authorName}</span>
         <span>{entry.updatedAt ? new Date(entry.updatedAt).toLocaleDateString(lang) : ''}</span>
       </span>
     </a>
   );
 }
 
-/** A published report, read-only, with the same exports as your own reports. */
+/** One archived report, read-only, with the exports and the way back into the library. */
 export function ArchiveReport({ id }: { id: string }) {
   const t = useT();
   const lang = useStore((s) => s.lang);
   const fetchReport = useCloud((s) => s.fetchReport);
-  const unpublish = useCloud((s) => s.unpublish);
+  const remove = useCloud((s) => s.remove);
+  const ready = useCloud((s) => s.ready);
   const user = useCloud((s) => s.user);
-  const profile = useCloud((s) => s.profile);
-  const adoptReport = useStore((s) => s.adoptReport);
+  const restoreReport = useStore((s) => s.restoreReport);
   const showToast = useStore((s) => s.showToast);
   const [state, setState] = useState<'loading' | 'missing' | 'error' | 'ready'>('loading');
   const [loaded, setLoaded] = useState<{ entry: ArchiveEntry; report: Report } | null>(null);
+  const inLibrary = useStore((s) => !!loaded && s.reports.some((r) => r.id === loaded.report.id));
 
-  // Load again when the login changes: a GM-only report appears once a GM signs in.
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
-    setState((s) => (s === 'ready' ? s : 'loading'));
+    setState('loading');
     fetchReport(id)
       .then((result) => {
         if (cancelled) return;
@@ -151,6 +168,14 @@ export function ArchiveReport({ id }: { id: string }) {
       cancelled = true;
     };
   }, [id, user?.id]);
+
+  if (ready && !user) {
+    return (
+      <main className="page">
+        <SignInPrompt />
+      </main>
+    );
+  }
 
   if (state !== 'ready' || !loaded) {
     return (
@@ -166,12 +191,18 @@ export function ArchiveReport({ id }: { id: string }) {
   }
 
   const { entry, report } = loaded;
-  const canRemove = !!user && (entry.authorId === user.id || profile?.isGm === true);
 
-  const remove = async () => {
+  const restore = () => {
+    if (inLibrary && !window.confirm(t('archive.confirmRestore'))) return;
+    restoreReport(report);
+    showToast(t('archive.restored'));
+    navigate(`/report/${report.id}`);
+  };
+
+  const takeOut = async () => {
     if (!window.confirm(t('archive.confirmRemove'))) return;
-    const ok = await unpublish(entry.id);
-    showToast(t(ok ? 'archive.removed' : 'publish.failed'));
+    const ok = await remove(entry.id);
+    showToast(t(ok ? 'archive.removed' : 'save.failed'));
     if (ok) navigate('/archive');
   };
 
@@ -183,28 +214,22 @@ export function ArchiveReport({ id }: { id: string }) {
         </a>
         <span className="editor-name">
           {entry.title || t('reports.untitled')}
-          <span className="editor-docno">
-            {entry.authorName} · {new Date(entry.updatedAt).toLocaleDateString(lang)}
-          </span>
-          {entry.visibility === 'gms' && <span className="chip chip-accent">{t('archive.gmOnly')}</span>}
+          <span className="editor-docno">{new Date(entry.updatedAt).toLocaleDateString(lang)}</span>
+          <span className={entry.status === 'final' ? 'chip chip-accent' : 'chip'}>{t(`archive.status.${entry.status}` as Key)}</span>
         </span>
         <div className="editor-actions">
           <ExportButtons report={report} />
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              adoptReport(report);
-              showToast(t('archive.savedCopy'));
-            }}
-          >
-            {t('archive.saveCopy')}
-          </button>
-          {canRemove && (
-            <button type="button" className="btn btn-danger" onClick={remove}>
-              {t('archive.remove')}
-            </button>
+          {inLibrary && (
+            <a className="btn" href={`#/report/${report.id}`}>
+              {t('archive.openLocal')}
+            </a>
           )}
+          <button type="button" className="btn" onClick={restore}>
+            {t(inLibrary ? 'archive.restoreOver' : 'archive.restore')}
+          </button>
+          <button type="button" className="btn btn-danger" onClick={takeOut}>
+            {t('archive.remove')}
+          </button>
         </div>
       </div>
       <div className="editor-main viewer">

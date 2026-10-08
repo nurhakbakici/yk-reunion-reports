@@ -23,7 +23,6 @@ export function App() {
   const init = useStore((s) => s.init);
   const cloudInit = useCloud((s) => s.init);
   const cloudUser = useCloud((s) => s.user);
-  const cloudName = useCloud((s) => s.profile?.displayName);
   const [account, setAccount] = useState(false);
 
   useEffect(() => {
@@ -66,7 +65,7 @@ export function App() {
         </nav>
         {cloudEnabled && (
           <button type="button" className="btn btn-small account-btn" onClick={() => setAccount(true)}>
-            {cloudUser ? cloudName || t('account.title') : t('account.signIn')}
+            {cloudUser ? cloudUser.name : t('account.signIn')}
           </button>
         )}
         <div className="lang" role="group" aria-label="Dil / Language">

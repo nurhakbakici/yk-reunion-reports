@@ -2,20 +2,20 @@ import { create } from 'zustand';
 import { normalizeReport } from '../store';
 import type { Report } from '../types';
 import { getClient } from './client';
-import { cloudEnabled } from './config';
+import { LOGIN_MAILBOX, cloudEnabled } from './config';
+import { loginEmail, loginName, nameFromEmail } from './login';
 
-// State for the shared archive: who is signed in, and what has been published.
+// State for the personal archive: who is signed in, and which reports they keep there.
 // Everything here is optional — with no archive configured, none of it runs.
 
-export type Visibility = 'everyone' | 'gms';
+export type Status = 'draft' | 'final';
 
 /** What the archive list shows. The report itself is fetched only when opened. */
 export interface ArchiveEntry {
   id: string;
+  /** The report's id in the library it was saved from. */
   localId: string;
-  authorId: string;
-  authorName: string;
-  visibility: Visibility;
+  status: Status;
   title: string;
   docNo: string;
   templateName: string;
@@ -25,14 +25,8 @@ export interface ArchiveEntry {
   updatedAt: string;
 }
 
-export interface Profile {
-  displayName: string;
-  isGm: boolean;
-  isMember: boolean;
-}
-
-const COLUMNS =
-  'id, local_id, author_id, author_name, visibility, title, doc_no, template_name, classification, accent, created_at, updated_at';
+const TABLE = 'archived_reports';
+const COLUMNS = 'id, local_id, status, title, doc_no, template_name, classification, accent, created_at, updated_at';
 
 /** Rows above this are refused by the database too; checking first gives a clear message. */
 const MAX_REPORT_BYTES = 3_500_000;
@@ -44,9 +38,7 @@ function toEntry(row: Row): ArchiveEntry {
   return {
     id: s(row.id),
     localId: s(row.local_id),
-    authorId: s(row.author_id),
-    authorName: s(row.author_name),
-    visibility: row.visibility === 'gms' ? 'gms' : 'everyone',
+    status: row.status === 'final' ? 'final' : 'draft',
     title: s(row.title),
     docNo: s(row.doc_no),
     templateName: s(row.template_name),
@@ -63,27 +55,33 @@ export class CloudError extends Error {
   }
 }
 
+/** How signing in or making an account ended. `detail` is the service's own wording, for the cases we do not know. */
+export interface LoginResult {
+  code: 'ok' | 'bad-name' | 'bad-login' | 'taken' | 'weak' | 'unconfirmed' | 'bad-code' | 'failed';
+  detail?: string;
+}
+
 interface CloudState {
   /** True once we know whether someone is signed in. */
   ready: boolean;
-  /** This browser's identity in the archive. There are no accounts behind it. */
-  user: { id: string } | null;
-  profile: Profile | null;
+  user: { id: string; name: string } | null;
+  /** Whether the account has entered the campaign code. Null until it is known. */
+  member: boolean | null;
+  /** The signed-in user's archived reports, newest first. */
   list: ArchiveEntry[];
   listState: 'idle' | 'loading' | 'ready' | 'error';
-  /** The signed-in user's own published reports. */
-  mine: ArchiveEntry[];
 
   init: () => void;
-  /** Joins with a name and a campaign code, creating this browser's identity if it has none. */
-  enter: (name: string, code: string) => Promise<'ok' | 'bad-code' | 'failed'>;
+  signIn: (name: string, password: string) => Promise<LoginResult>;
+  /** Makes the account and, with the campaign code, lets it save. */
+  signUp: (name: string, password: string, code: string) => Promise<LoginResult>;
   signOut: () => Promise<void>;
-  rename: (name: string) => Promise<boolean>;
+  changePassword: (password: string) => Promise<boolean>;
   join: (code: string) => Promise<boolean>;
   refreshList: () => Promise<void>;
   fetchReport: (id: string) => Promise<{ entry: ArchiveEntry; report: Report } | null>;
-  publish: (report: Report, visibility: Visibility) => Promise<ArchiveEntry>;
-  unpublish: (id: string) => Promise<boolean>;
+  save: (report: Report, status: Status) => Promise<ArchiveEntry>;
+  remove: (id: string) => Promise<boolean>;
 }
 
 let started = false;
@@ -92,31 +90,25 @@ export const useCloud = create<CloudState>((set, get) => {
   async function loadAccount(userId: string) {
     const client = getClient();
     if (!client) return;
-    const [profile, mine] = await Promise.all([
-      client.from('profiles').select('display_name, is_gm, is_member').eq('id', userId).maybeSingle(),
-      client.from('published_reports').select(COLUMNS).eq('author_id', userId).order('updated_at', { ascending: false }),
+    set({ listState: get().list.length ? 'ready' : 'loading' });
+    const [profile, list] = await Promise.all([
+      client.from('profiles').select('is_member').eq('id', userId).maybeSingle(),
+      client.from(TABLE).select(COLUMNS).eq('author_id', userId).order('updated_at', { ascending: false }).limit(1000),
     ]);
     // Ignore the answer if the user signed out or changed while we were asking.
     if (get().user?.id !== userId) return;
     set({
-      profile: profile.data
-        ? {
-            displayName: s(profile.data.display_name),
-            isGm: profile.data.is_gm === true,
-            isMember: profile.data.is_member === true,
-          }
-        : null,
-      mine: (mine.data ?? []).map(toEntry),
+      member: profile.error ? get().member : profile.data?.is_member === true,
+      ...(list.error ? { listState: 'error' } : { list: (list.data ?? []).map(toEntry), listState: 'ready' }),
     });
   }
 
   return {
     ready: !cloudEnabled,
     user: null,
-    profile: null,
+    member: null,
     list: [],
     listState: 'idle',
-    mine: [],
 
     init() {
       const client = getClient();
@@ -124,36 +116,59 @@ export const useCloud = create<CloudState>((set, get) => {
       started = true;
 
       client.auth.onAuthStateChange((_event, session) => {
+        // The shared archive this replaced gave each browser a nameless identity. One of
+        // those may still be stored here; it owns nothing in the personal archive.
+        if (session?.user?.is_anonymous) {
+          setTimeout(() => void client.auth.signOut({ scope: 'local' }), 0);
+          set({ ready: true });
+          return;
+        }
         const previous = get().user?.id ?? null;
-        const user = session?.user ? { id: session.user.id } : null;
-        set({ ready: true, user, ...(user ? {} : { profile: null, mine: [] }) });
-        if (user?.id === previous) return;
+        const user = session?.user ? { id: session.user.id, name: nameFromEmail(session.user.email ?? '') } : null;
+        set({ ready: true, user, ...(user ? {} : { member: null, list: [], listState: 'idle' }) });
+        if (!user || user.id === previous) return;
         // The client must not be called from inside its own auth callback.
-        setTimeout(() => {
-          if (user) void loadAccount(user.id);
-          // What a visitor may see depends on who they are, so reload the list.
-          if (get().listState !== 'idle') void get().refreshList();
-        }, 0);
+        setTimeout(() => void loadAccount(user.id), 0);
       });
     },
 
-    async enter(name, code) {
+    async signIn(name, password) {
       const client = getClient();
-      if (!client) return 'failed';
-      let userId = get().user?.id;
-      if (!userId) {
-        // No email and no password: the browser gets an identity of its own.
-        const { data, error } = await client.auth.signInAnonymously();
-        if (error || !data.user) return 'failed';
-        userId = data.user.id;
-        if (get().user?.id !== userId) set({ ready: true, user: { id: userId } });
+      const login = loginName(name);
+      if (!client) return { code: 'failed' };
+      if (!login) return { code: 'bad-name' };
+      const { error } = await client.auth.signInWithPassword({ email: loginEmail(login, LOGIN_MAILBOX), password });
+      if (!error) return { code: 'ok' };
+      if (error.code === 'email_not_confirmed') return { code: 'unconfirmed' };
+      if (error.code === 'invalid_credentials' || /invalid login/i.test(error.message)) return { code: 'bad-login' };
+      return { code: 'failed', detail: error.message };
+    },
+
+    async signUp(name, password, code) {
+      const client = getClient();
+      const login = loginName(name);
+      if (!client) return { code: 'failed' };
+      if (!login) return { code: 'bad-name' };
+      const { data, error } = await client.auth.signUp({
+        email: loginEmail(login, LOGIN_MAILBOX),
+        password,
+        options: { data: { display_name: name.trim().slice(0, 60) } },
+      });
+      if (error) {
+        if (error.code === 'user_already_exists' || /already registered/i.test(error.message)) return { code: 'taken' };
+        if (error.code === 'weak_password') return { code: 'weak' };
+        // The project tried to mail a confirmation and could not: the same dashboard setting as below.
+        if (/confirmation (e-?mail|mail)/i.test(error.message)) return { code: 'unconfirmed' };
+        return { code: 'failed', detail: error.message };
       }
-      const displayName = name.trim().slice(0, 60);
-      const renamed = await client.from('profiles').update({ display_name: displayName }).eq('id', userId);
+      // No session means the project still wants the address confirmed by mail: a
+      // dashboard setting, not something the person signing up can fix.
+      if (!data.session || !data.user) return { code: 'unconfirmed' };
+      const userId = data.user.id;
+      if (get().user?.id !== userId) set({ ready: true, user: { id: userId, name: login } });
       const joined = await client.rpc('join_campaign', { code });
       await loadAccount(userId);
-      if (renamed.error || joined.error) return 'failed';
-      return joined.data === true ? 'ok' : 'bad-code';
+      return joined.data === true ? { code: 'ok' } : { code: 'bad-code' };
     },
 
     async signOut() {
@@ -161,16 +176,11 @@ export const useCloud = create<CloudState>((set, get) => {
       await getClient()?.auth.signOut({ scope: 'local' });
     },
 
-    async rename(name) {
+    async changePassword(password) {
       const client = getClient();
-      const user = get().user;
-      if (!client || !user) return false;
-      const displayName = name.trim().slice(0, 60);
-      const { error } = await client.from('profiles').update({ display_name: displayName }).eq('id', user.id);
-      if (error) return false;
-      const profile = get().profile;
-      if (profile) set({ profile: { ...profile, displayName } });
-      return true;
+      if (!client || !get().user) return false;
+      const { error } = await client.auth.updateUser({ password });
+      return !error;
     },
 
     async join(code) {
@@ -179,52 +189,40 @@ export const useCloud = create<CloudState>((set, get) => {
       if (!client || !user) return false;
       const { data, error } = await client.rpc('join_campaign', { code });
       if (error || data !== true) return false;
-      await loadAccount(user.id);
+      set({ member: true });
       return true;
     },
 
     async refreshList() {
-      const client = getClient();
-      if (!client) return;
-      set({ listState: get().list.length ? 'ready' : 'loading' });
-      const { data, error } = await client
-        .from('published_reports')
-        .select(COLUMNS)
-        .order('updated_at', { ascending: false })
-        .limit(500);
-      if (error) set({ listState: 'error' });
-      else set({ list: (data ?? []).map(toEntry), listState: 'ready' });
+      const user = get().user;
+      if (user) await loadAccount(user.id);
     },
 
     async fetchReport(id) {
       const client = getClient();
       if (!client) return null;
-      const { data, error } = await client
-        .from('published_reports')
-        .select(`${COLUMNS}, report`)
-        .eq('id', id)
-        .maybeSingle();
+      const { data, error } = await client.from(TABLE).select(`${COLUMNS}, report`).eq('id', id).maybeSingle();
       if (error) throw new CloudError('offline');
       if (!data) return null;
-      // Whatever is in the archive was written by someone else: check it like an imported file.
+      // Check what comes back like an imported file: it has been outside this app.
       const report = normalizeReport(data.report);
       return report ? { entry: toEntry(data), report } : null;
     },
 
-    async publish(report, visibility) {
+    async save(report, status) {
       const client = getClient();
       const user = get().user;
       if (!client || !user) throw new CloudError('not-allowed');
       if (new Blob([JSON.stringify(report)]).size > MAX_REPORT_BYTES) throw new CloudError('too-large');
       const { data, error } = await client
-        .from('published_reports')
+        .from(TABLE)
         .upsert(
           {
-            // The database sets the real author from the login; this only lets
-            // it match an earlier publication of the same report.
+            // The database sets the real owner from the login; this only lets it
+            // find the row this report was saved to before.
             author_id: user.id,
             local_id: report.id,
-            visibility,
+            status,
             title: report.title,
             doc_no: report.docNo,
             template_name: report.template.name,
@@ -237,26 +235,30 @@ export const useCloud = create<CloudState>((set, get) => {
         .select(COLUMNS)
         .single();
       if (error || !data) {
-        // 42501: refused by the access rules (not a member, or signed out meanwhile).
+        // 42501: refused by the access rules (no campaign code yet, or signed out meanwhile).
         throw new CloudError(error?.code === '42501' ? 'not-allowed' : error?.code === '23514' ? 'too-large' : 'failed');
       }
       const entry = toEntry(data);
-      set({
-        mine: [entry, ...get().mine.filter((e) => e.id !== entry.id)],
-        list: get().listState === 'idle' ? get().list : [entry, ...get().list.filter((e) => e.id !== entry.id)],
-      });
+      set({ list: [entry, ...get().list.filter((e) => e.id !== entry.id)], listState: 'ready' });
       return entry;
     },
 
-    async unpublish(id) {
+    async remove(id) {
       const client = getClient();
       if (!client) return false;
       // Ask for the removed row back: the access rules silently skip rows that
       // are not ours to remove, and an empty answer is how that shows.
-      const { data, error } = await client.from('published_reports').delete().eq('id', id).select('id');
+      const { data, error } = await client.from(TABLE).delete().eq('id', id).select('id');
       if (error || !data?.length) return false;
-      set({ mine: get().mine.filter((e) => e.id !== id), list: get().list.filter((e) => e.id !== id) });
+      set({ list: get().list.filter((e) => e.id !== id) });
       return true;
     },
   };
 });
+
+/** True when the library's copy has been edited since it was last saved to the archive. */
+export function isStale(entry: ArchiveEntry, report: Report): boolean {
+  const saved = Date.parse(entry.updatedAt);
+  // A few seconds of slack: the two times come from different clocks.
+  return Number.isFinite(saved) && report.updatedAt > saved + 5000;
+}

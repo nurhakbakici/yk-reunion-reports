@@ -1,4 +1,4 @@
-// Connection to the shared campaign archive (a Supabase project).
+// Connection to the personal report archive (a Supabase project).
 //
 // Paste the two values from the Supabase dashboard (Project Settings → API)
 // between the quotes below. Both are public by design: they only say which
@@ -10,7 +10,14 @@
 const PROJECT_URL = 'https://bgaymjxpzalukzryptwu.supabase.co';
 const PUBLIC_KEY = 'sb_publishable_HQ5QBskDym4E6b9qMkFmpQ_qm7A8ikW'; // publishable key — never the secret / service_role key
 
-/** Set to true after enabling the Discord provider in Supabase (Authentication → Providers). */
+/**
+ * People sign in with a user name and a password, but the archive's login
+ * service only knows email addresses. Each user name therefore becomes a
+ * "plus" address of this one mailbox (name → mailbox+name@domain). No mail is
+ * ever sent to it by the app; it has to be a real address only because the
+ * service refuses ones that could not exist. Use a mailbox the campaign owns.
+ */
+export const LOGIN_MAILBOX = 'ankhaproject@gmail.com';
 
 export const SUPABASE_URL: string = import.meta.env.VITE_SUPABASE_URL || PROJECT_URL;
 export const SUPABASE_KEY: string = import.meta.env.VITE_SUPABASE_KEY || PUBLIC_KEY;

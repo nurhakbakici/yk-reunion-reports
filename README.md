@@ -76,16 +76,15 @@ A report keeps its own copy of the template it was made from, so editing or dele
 
 How it works: the app keeps the forum tab as an opened window and sends the report with `postMessage`. The Kule forum theme (`kule-ankha.js`) accepts it only from `https://ankha-reports.kulesakinleri.org` (and from `https://nurhakbakici.github.io` until the move is done) and only in a tab this app opened, and it never submits the form. That is also why it only works on GitHub Pages, not in the copy opened from disk. The forum side lives in the Kule theme repository; the design is `docs/superpowers/specs/2026-10-08-ankha-forum-design.md` there.
 
-## Shared campaign archive (optional)
+## Personal archive (optional)
 
-Out of the box every player's reports stay in their own browser. Connecting a free [Supabase](https://supabase.com) project adds a shared archive:
+Out of the box every player's reports stay in the browser they were written in. Connecting a free [Supabase](https://supabase.com) project gives each player an archive of their own:
 
-- an **Arşiv** tab that anyone can read, without an account;
-- an **Arşive yayınla** button on every report, for campaign members (a name and a join code, no accounts);
-- per report, the author chooses **Herkes** (public) or **Yalnızca oyun yöneticileri** (only the author and GMs can see it);
-- authors can update or remove their own publications; GMs can remove any.
+- an **Arşive kaydet** button on every report, which stores it as **Taslak** (draft) or **Tamamlandı** (finished);
+- an **Arşiv** tab listing what you saved, and only that: nobody can read anyone else's reports;
+- on another device, sign in and use **Raporlarıma al** to bring a report back into the library.
 
-Publishing sends a snapshot. Drafts and later edits stay private until published again.
+Saving stores a snapshot. Later edits reach the archive when you save again; the button reads **Arşivi güncelle** while there are any. Sharing with other players is what **Foruma gönder** is for.
 
 Until the two values in `src/cloud/config.ts` are filled in, none of this is shown and the app behaves as before.
 
@@ -94,32 +93,31 @@ Until the two values in `src/cloud/config.ts` are filled in, none of this is sho
 Menu names in the Supabase dashboard change now and then; look for the nearest match.
 
 1. **Create the project.** Sign up at supabase.com, create a new project (any region near your players), and wait for it to finish starting.
-2. **Create the tables and access rules.** Open *SQL Editor*, paste the whole of [`supabase/schema.sql`](supabase/schema.sql), and run it.
-3. **Allow sign-in without accounts.** In *Authentication → Sign In / Providers* turn on *Allow anonymous sign-ins* and save. The app uses no emails or passwords: each browser gets an identity of its own the first time someone joins.
-4. **Connect the app.** From *Project Settings → API* copy the *Project URL* and the *anon / publishable* key into `src/cloud/config.ts`, then commit and push. Both values are meant to be public. Never put the `service_role` key in the app.
-5. **Get the two codes.** Run this in the SQL Editor:
+2. **Create the tables and access rules.** Open *SQL Editor*, paste the whole of [`supabase/schema.sql`](supabase/schema.sql), and run it. It can be run again at any time, and it upgrades the earlier shared archive in place.
+3. **Let people make accounts without email.** In *Authentication → Sign In / Providers* open *Email*, keep it enabled, and switch **Confirm email off**. Switch *Allow anonymous sign-ins* off too; the app no longer uses them.
+4. **Connect the app.** From *Project Settings → API* copy the *Project URL* and the *anon / publishable* key into `src/cloud/config.ts`, and set `LOGIN_MAILBOX` there to a mailbox the campaign owns (see below). Then commit and push. The URL and key are meant to be public. Never put the `service_role` key in the app.
+5. **Get the join code.** Run this in the SQL Editor and give the code to your players:
 
    ```sql
-   select key, value from public.app_settings;
+   select value from public.app_settings where key = 'join_code';
    ```
 
-   `join_code` is for players and `gm_code` is for game masters. On the site, *Arşive katıl* asks for a name and one of the codes. More admin queries (changing a code, listing or removing members) are at the end of `schema.sql`.
+   On the site, *Giriş yap → Hesap oluştur* asks for a user name, a password and this code. More admin queries (changing the code, listing accounts, resetting a password) are at the end of `schema.sql`.
 
 ### Good to know
 
-- **Who can publish:** only people who entered the join code or the GM code. A stranger who finds the site can read public reports but cannot add any.
-- **Identity lives in the browser.** There is no account to log back into. Someone who clears their browser data, or uses another device, joins again with the code and gets a new identity; reports published from the old one stay in the archive but can then only be removed by a GM.
-- **Keep the GM code to the GMs.** Anyone who enters it can read GM-only reports and remove any report. If it leaks, change it and demote whoever should not have it (queries in `schema.sql`).
-- **Author names** are the name each person typed when joining, changeable under their name in the top bar. They cannot be typed in per report.
-- **Free-tier pause:** Supabase pauses a free project after about a week with no activity. Reading the archive counts as activity; if it does pause, resume it from the dashboard.
-- **Size:** a published report can be up to roughly 3.5 MB, images included. The free database holds 500 MB.
+- **User names, not emails.** Supabase only signs people in by email address, so each user name becomes a "plus" address of `LOGIN_MAILBOX` (*name* → `mailbox+name@…`). The app never sends mail to it, but it has to be a real mailbox that you control: anything Supabase might ever send for an account would arrive there.
+- **Forgotten passwords** cannot be recovered by the player. Set a new one with the query at the end of `schema.sql`, tell them, and have them change it under their name in the top bar.
+- **Who can save:** only accounts that entered the join code. Anyone can make an account, but without the code it can store nothing.
+- **Free-tier pause:** Supabase pauses a free project after about a week with no activity. Signing in or opening the archive counts as activity; if it does pause, resume it from the dashboard.
+- **Size:** a saved report can be up to roughly 3.5 MB, images included. The free database holds 500 MB; the accounts query in `schema.sql` shows how much each person uses.
 
 ## Project layout
 
 ```
 supabase/schema.sql        Archive tables and access rules (run once in Supabase)
 src/
-  cloud/                   Archive connection, joining and publishing
+  cloud/                   Archive connection, accounts and saving
   lore.ts                  Setting data from the wiki (departments, locations, …)
   templates/builtin.ts     The built-in templates
   types.ts                 Template / Report data model
