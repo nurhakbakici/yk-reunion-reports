@@ -1,4 +1,4 @@
-import { useDeferredValue, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '../i18n';
 import { copyImage, copyText, documentToPngs, reportToText, stackImages } from '../lib/exporters';
@@ -58,11 +58,11 @@ export function ExportButtons({ report }: { report: Report }) {
     downloadBlob(await pagesToPdf(pages, report.title.trim() || report.template.docTitle), `${fileBaseFor(report)}.pdf`);
   };
 
-  /** The forum dialog asks for the pages when the player sends; the hidden copy is the one exports use. */
-  const makePages = () => {
+  /** The forum dialog asks for the pages once, when it opens; the hidden copy is the one exports use. */
+  const makePages = useCallback(() => {
     if (!copy.current) return Promise.reject(new Error('no document'));
     return documentToPngs(copy.current);
-  };
+  }, []);
 
   const copyAsImage = async (pages: Blob[]) => {
     await copyImage(await stackImages(pages));

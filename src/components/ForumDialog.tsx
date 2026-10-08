@@ -21,13 +21,18 @@ import { Dialog } from './AccountDialog';
 // The forum's subject field takes 80 characters
 const MAX_SUBJECT = 80;
 
-/** The PDF (at half size if the full one is over the forum's file limit) and the page-1 preview, as far as they fit. */
-async function forumFiles(
-  pages: Blob[],
-  report: Report,
-  title: string,
-  limits: ForumBoards['sinirlar'],
-): Promise<{ files: ForumFile[]; pdfDropped: boolean }> {
+interface Prepared {
+  metin: string;
+  files: ForumFile[];
+  pdfDropped: boolean;
+}
+
+/** The text, the PDF (at half size if the full one is over the forum's file limit) and the page-1 preview, as far
+ *  as they fit. */
+async function prepare(pages: Blob[], report: Report, limits: ForumBoards['sinirlar']): Promise<Prepared> {
+  const metin = fitMessage(reportToBBCode(report), limits.ileti, translate(report.template.lang, 'forum.truncated'));
+  // The same title as "PDF indir"
+  const title = report.title.trim() || report.template.docTitle;
   const perFile = limits.dosya_kb * 1024;
   let pdf = await pagesToPdf(pages, title, 1);
   if (perFile && pdf.size > perFile) pdf = await pagesToPdf(pages, title, 0.5);
@@ -38,7 +43,7 @@ async function forumFiles(
     ],
     limits,
   );
-  return { files, pdfDropped: !files.some((f) => f.tur === 'application/pdf') };
+  return { metin, files, pdfDropped: !files.some((f) => f.tur === 'application/pdf') };
 }
 
 /** "Foruma gönder": pick a ReUnion board, then the forum's New Topic page opens filled in; the player posts it. */
@@ -57,25 +62,36 @@ export function ForumDialog({
   const [subject, setSubject] = useState(
     (report.title.trim() || `${report.template.docTitle} ${report.docNo}`).slice(0, MAX_SUBJECT),
   );
-  const [busy, setBusy] = useState(false);
+  const [prepared, setPrepared] = useState<Prepared | null>(null);
+  const [failed, setFailed] = useState(false);
   const [status, setStatus] = useState<HandoffStatus | null>(null);
-  const [notes, setNotes] = useState<string[]>([]);
   const [error, setError] = useState('');
   const handoff = useRef<Handoff | null>(null);
   const offline = location.protocol === 'file:';
+  const busy = !prepared && !failed;
 
+  // The board list, then everything the forum gets, while the player picks a board: the click then only opens the
+  // forum tab. Once that tab is in front, this one runs in the background, where drawing pages can stall.
   useEffect(() => {
     if (offline) return;
     let live = true;
-    fetchBoards().then((answer) => {
+    (async () => {
+      const answer = await fetchBoards();
       if (!live) return;
       setBoards(answer);
-      if (answer) setBoard(defaultBoard(answer, report.classification));
-    });
+      if (!answer) return;
+      setBoard(defaultBoard(answer, report.classification));
+      try {
+        const ready = await prepare(await makePages(), report, answer.sinirlar);
+        if (live) setPrepared(ready);
+      } catch {
+        if (live) setFailed(true);
+      }
+    })();
     return () => {
       live = false;
     };
-  }, [offline, report.classification]);
+  }, [offline, report, makePages]);
 
   // Messages from the forum tab, and the time-out check, for as long as the dialog is open
   useEffect(() => {
@@ -88,30 +104,24 @@ export function ForumDialog({
     };
   }, []);
 
-  const open = async () => {
-    if (!boards || busy) return;
-    // Opened inside the click, before anything is awaited, so a pop-up blocker lets it through
+  const open = () => {
+    if (!prepared) return;
+    // Opened inside the click, so a pop-up blocker lets it through
     const tab = window.open(postUrl(board), FORUM_WINDOW);
     if (!tab) {
       setError(t('forum.blocked'));
       return;
     }
     setError('');
-    setNotes([]);
-    setBusy(true);
     handoff.current = createHandoff(tab, setStatus);
-    try {
-      const title = subject.trim();
-      const { files, pdfDropped } = await forumFiles(await makePages(), report, title, boards.sinirlar);
-      if (pdfDropped) setNotes([t('forum.noPdf')]);
-      const lang = report.template.lang;
-      const metin = fitMessage(reportToBBCode(report), boards.sinirlar.ileti, translate(lang, 'forum.truncated'));
-      handoff.current.setReport({ kaynak: 'ankha', tur: 'rapor', surum: 1, konu: title, metin, dosyalar: files });
-    } catch {
-      setError(t('toast.pdfFailed'));
-    } finally {
-      setBusy(false);
-    }
+    handoff.current.setReport({
+      kaynak: 'ankha',
+      tur: 'rapor',
+      surum: 1,
+      konu: subject.trim(),
+      metin: prepared.metin,
+      dosyalar: prepared.files,
+    });
   };
 
   const message = (() => {
@@ -156,14 +166,11 @@ export function ForumDialog({
           <p className="dialog-text dim">{t('forum.hint')}</p>
           {busy && <p className="dialog-text">{t('forum.preparing')}</p>}
           {message && <p className="dialog-text">{message}</p>}
-          {notes.map((note) => (
-            <p key={note} className="dialog-text dim">
-              {note}
-            </p>
-          ))}
+          {prepared?.pdfDropped && <p className="dialog-text dim">{t('forum.noPdf')}</p>}
+          {failed && <p className="form-error">{t('toast.pdfFailed')}</p>}
           {error && <p className="form-error">{error}</p>}
           <div className="dialog-actions">
-            <button type="button" className="btn btn-primary" disabled={busy || !subject.trim()} onClick={open}>
+            <button type="button" className="btn btn-primary" disabled={!prepared || !subject.trim()} onClick={open}>
               {busy ? t('forum.preparing') : t('forum.open')}
             </button>
           </div>

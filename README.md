@@ -68,7 +68,7 @@ A report keeps its own copy of the template it was made from, so editing or dele
 
 *Foruma gönder* posts a report as a new topic in one of the ReUnion boards of the Kule Sakinleri forum, under the player's own forum account.
 
-1. Pick the board. The list comes from the forum (`https://kulesakinleri.org/reunion-bolumler.php`), so new boards show up by themselves. Open reports start on *Umuma Mahsus Raporlar*, classified ones on *Hizmete Mahsus Raporlar*.
+1. Pick the board. The list comes from the forum (`https://kulesakinleri.org/reunion-bolumler.php`), so new boards show up by themselves. Open reports start on *Umuma Mahsus Raporlar*, classified ones on *Hizmete Mahsus Raporlar*. Meanwhile the app prepares the text, the PDF and the preview; *Forumda aç* can be clicked once they are ready.
 2. *Forumda aç* opens the board's New Topic page in a new tab. If the forum asks you to sign in, do so; the report arrives after that.
 3. The forum fills in the subject, the report as text (BBCode, in the editor's source view) and two attachments: the report as a PDF and its first page as a preview image. Hidden (`||…||`) words are left out of all three.
 4. Check it and press *Gönder* yourself. Nothing is posted until you do.
