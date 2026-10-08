@@ -20,6 +20,7 @@ npm run build      # writes dist/index.html
 
 - **On Windows:** double-click it. It runs straight from disk, offline, in Chrome, Edge or Firefox. Send the file to another player and it works for them too.
 - **On GitHub Pages:** push this repository to GitHub, then in the repository's *Settings → Pages* set *Source* to **GitHub Actions**. The included workflow (`.github/workflows/deploy.yml`) builds and publishes on every push to `main`.
+- **Live copy:** <https://ankha-reports.kulesakinleri.org/>, set under *Settings → Pages → Custom domain*. Its DNS record (a CNAME to `nurhakbakici.github.io`, not proxied) is kept in the Kule Sakinleri forum's Cloudflare account. The old address, `https://nurhakbakici.github.io/yk-reunion-reports/`, forwards there.
 
 Reports are stored per browser and per address, so the copy opened from disk and the copy on GitHub Pages each have their own library. Use *Tümünü yedekle* / *İçe aktar* to move between them.
 
@@ -73,7 +74,7 @@ A report keeps its own copy of the template it was made from, so editing or dele
 3. The forum fills in the subject, the report as text (BBCode, in the editor's source view) and two attachments: the report as a PDF and its first page as a preview image. Hidden (`||…||`) words are left out of all three.
 4. Check it and press *Gönder* yourself. Nothing is posted until you do.
 
-How it works: the app keeps the forum tab as an opened window and sends the report with `postMessage`. The Kule forum theme (`kule-ankha.js`) accepts it only from `https://nurhakbakici.github.io` and only in a tab this app opened, and it never submits the form. That is also why it only works on GitHub Pages, not in the copy opened from disk. The forum side lives in the Kule theme repository; the design is `docs/superpowers/specs/2026-10-08-ankha-forum-design.md` there.
+How it works: the app keeps the forum tab as an opened window and sends the report with `postMessage`. The Kule forum theme (`kule-ankha.js`) accepts it only from `https://ankha-reports.kulesakinleri.org` (and from `https://nurhakbakici.github.io` until the move is done) and only in a tab this app opened, and it never submits the form. That is also why it only works on GitHub Pages, not in the copy opened from disk. The forum side lives in the Kule theme repository; the design is `docs/superpowers/specs/2026-10-08-ankha-forum-design.md` there.
 
 ## Shared campaign archive (optional)
 
