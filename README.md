@@ -39,10 +39,12 @@ Reports are stored per browser and per address, so the copy opened from disk and
 | Button | Result |
 | --- | --- |
 | PNG indir | 2× resolution image of the document; a report longer than one page gives one numbered file per page |
+| PDF indir | The document as a PDF, one A4 sheet per page, straight away (no print dialog). The pages are images, so the text cannot be selected |
 | Görseli kopyala | The document as one image on the clipboard (all pages stacked), ready to paste into Discord |
 | Yazdır / PDF | A4 print layout, one sheet per page; choose "Save as PDF" in the print dialog |
 | Metin olarak kopyala | Markdown text that Discord renders as-is |
 | Rapor dosyası (.json) | The report itself, for another player to import and edit |
+| Foruma gönder | Opens a new topic on one of the YK: Reunion boards of the [Kule Sakinleri forum](https://kulesakinleri.org/forum/), filled in with the report (see below) |
 
 **Templates**
 
@@ -61,6 +63,17 @@ Built-ins are read-only; *Özelleştir* makes an editable copy. In the template 
 Field types: short text, long text, choice, date, bullet list, table, level meter, image, signature. Each can be full width, 2/3, half or 1/3. A 1/3 image placed first in a section becomes a portrait beside the 2/3 fields that follow it (see Personel Dosyası).
 
 A report keeps its own copy of the template it was made from, so editing or deleting a template never breaks old reports. When the template has changed, the report offers to move to the new version.
+
+## Sending a report to the forum
+
+*Foruma gönder* posts a report as a new topic in one of the ReUnion boards of the Kule Sakinleri forum, under the player's own forum account.
+
+1. Pick the board. The list comes from the forum (`https://kulesakinleri.org/reunion-bolumler.php`), so new boards show up by themselves. Open reports start on *Umuma Mahsus Raporlar*, classified ones on *Hizmete Mahsus Raporlar*.
+2. *Forumda aç* opens the board's New Topic page in a new tab. If the forum asks you to sign in, do so; the report arrives after that.
+3. The forum fills in the subject, the report as text (BBCode, in the editor's source view) and two attachments: the report as a PDF and its first page as a preview image. Hidden (`||…||`) words are left out of all three.
+4. Check it and press *Gönder* yourself. Nothing is posted until you do.
+
+How it works: the app keeps the forum tab as an opened window and sends the report with `postMessage`. The Kule forum theme (`kule-ankha.js`) accepts it only from `https://nurhakbakici.github.io` and only in a tab this app opened, and it never submits the form. That is also why it only works on GitHub Pages, not in the copy opened from disk. The forum side lives in the Kule theme repository; the design is `docs/superpowers/specs/2026-10-08-ankha-forum-design.md` there.
 
 ## Shared campaign archive (optional)
 
@@ -118,6 +131,10 @@ src/
     TemplateEditor.tsx     Template builder
     FieldInput.tsx         Form control for each field type
   lib/exporters.ts         PNG, clipboard and text export
+  lib/pdf.ts               PDF from the page images (no library)
+  lib/bbcode.ts            The report as forum BBCode
+  lib/forum.ts             Forum board list and the hand-over to the forum tab
+  components/ForumDialog.tsx  "Foruma gönder"
   styles/document.css      Document themes and print layout
   styles/app.css           App chrome
 ```
