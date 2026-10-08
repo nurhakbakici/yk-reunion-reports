@@ -192,4 +192,16 @@ describe('createHandoff', () => {
     answered.handoff.tick();
     expect(answered.statuses).toEqual(['bekliyor', 'alindi']);
   });
+
+  it('still sends when the tab is ready after the two minutes (a slow login)', () => {
+    const { sent, statuses, handoff, from, advance } = setup();
+    handoff.setReport(report);
+    advance(HANDOFF_TIMEOUT_MS);
+    handoff.tick();
+    expect(statuses).toEqual(['bekliyor', 'zaman-asimi']);
+    from(forum('hazir'));
+    expect(sent).toEqual([[report, FORUM_ORIGIN]]);
+    from(forum('alindi', { eklenen: 2 }));
+    expect(statuses).toEqual(['bekliyor', 'zaman-asimi', 'gonderildi', 'alindi']);
+  });
 });

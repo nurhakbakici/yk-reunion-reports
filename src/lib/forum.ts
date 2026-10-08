@@ -7,7 +7,8 @@ export const FORUM_ORIGIN = 'https://kulesakinleri.org';
 export const BOARDS_URL = `${FORUM_ORIGIN}/reunion-bolumler.php`;
 /** The forum tab's name. It survives the forum's login redirect, which is how kule-ankha.js knows the tab. */
 export const FORUM_WINDOW = 'ankha-forum';
-/** Without an answer from the forum tab for this long, the dialog says what to check. */
+/** Without an answer from the forum tab for this long, the dialog says what to check (the report still goes
+ *  if the tab gets ready later, after a slow login). */
 export const HANDOFF_TIMEOUT_MS = 120_000;
 
 export const postUrl = (board: number) => `${FORUM_ORIGIN}/forum/index.php?action=post;board=${board}.0`;
@@ -121,7 +122,7 @@ export interface Handoff {
   setReport(report: ForumReport): void;
   /** A message event from the window (the caller passes them all; only the forum tab's count). */
   receive(event: { origin: string; source: unknown; data: unknown }): void;
-  /** Called on a timer: reports the time-out once. */
+  /** Called on a timer: reports the time-out once; the hand-over goes on. */
   tick(): void;
   readonly done: boolean;
 }
@@ -139,6 +140,7 @@ export function createHandoff(
   let ready = false;
   let report: ForumReport | null = null;
   let done = false;
+  let late = false;
 
   const send = () => {
     if (!ready || !report || done) return;
@@ -168,8 +170,8 @@ export function createHandoff(
       }
     },
     tick() {
-      if (done || now() - started < HANDOFF_TIMEOUT_MS) return;
-      done = true;
+      if (done || late || now() - started < HANDOFF_TIMEOUT_MS) return;
+      late = true;
       onStatus({ tur: 'zaman-asimi' });
     },
     get done() {
