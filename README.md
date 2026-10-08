@@ -28,6 +28,7 @@ Reports are stored per browser and per address, so the copy opened from disk and
 **Reports**
 
 - Form on the left, live document on the right.
+- A report that outgrows one A4 page continues on the next: long text breaks between lines, tables between rows, and every page carries the classification bars, a page number and the document number.
 - Every document has a subject line, a generated document number, a classification banner (Açık → Çok Gizli) and an optional rotated stamp.
 - Dates default to today plus 300 years, matching the setting (2026 → 2326).
 - Location, department, origin, organisation and Atlas squad fields suggest values from the wiki but accept anything.
@@ -37,9 +38,9 @@ Reports are stored per browser and per address, so the copy opened from disk and
 
 | Button | Result |
 | --- | --- |
-| PNG indir | 2× resolution image of the document |
-| Görseli kopyala | Same image on the clipboard, ready to paste into Discord |
-| Yazdır / PDF | A4 print layout; choose "Save as PDF" in the print dialog |
+| PNG indir | 2× resolution image of the document; a report longer than one page gives one numbered file per page |
+| Görseli kopyala | The document as one image on the clipboard (all pages stacked), ready to paste into Discord |
+| Yazdır / PDF | A4 print layout, one sheet per page; choose "Save as PDF" in the print dialog |
 | Metin olarak kopyala | Markdown text that Discord renders as-is |
 | Rapor dosyası (.json) | The report itself, for another player to import and edit |
 
@@ -125,14 +126,14 @@ To add or correct setting data (a new location, a new organisation), edit `src/l
 
 ## Roadmap
 
-Built so far: report library, nine templates, template editor, four themes, PNG / clipboard / PDF / text / JSON export, import and backup, Turkish and English UI, phone layout.
+Built so far: report library, nine templates, template editor, four themes, automatic A4 pages for long reports, PNG / clipboard / PDF / text / JSON export, import and backup, Turkish and English UI, phone layout.
 
 Next, roughly in order of value:
 
 1. **More templates** as the campaign needs them: psychological evaluation (İnsan, Deneyim ve Kültür), cargo and inventory manifest, flight log (Sandstorm), EDEN Foods ration report, Koyash energy report, A.R.E.M. android maintenance record.
 2. **Character roster** — save your characters once (name, origin, department, organisation, portrait) and pick them in crew tables and signature fields instead of retyping.
 3. **Drag-and-drop reordering** of sections and fields in the template editor.
-4. **More document dressing**: handwritten margin notes, coffee-stain / damaged-data effects, a second stamp, page numbers for multi-page prints.
+4. **More document dressing**: handwritten margin notes, coffee-stain / damaged-data effects, a second stamp, a manual "new page here" marker.
 5. **Shared template pack** — a `templates/` folder in the repository that GMs maintain, loaded by everyone on the hosted version.
 6. **Installable app** — add a web manifest so the GitHub Pages version can be installed as a desktop app from Chrome or Edge.
 

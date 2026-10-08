@@ -1,4 +1,4 @@
-import { getFontEmbedCSS, toBlob } from 'html-to-image';
+import { getFontEmbedCSS } from 'html-to-image';
 import { translate, type Key } from '../i18n';
 import { PROJECT_NAME, SHIP_NAME } from '../lore';
 import type { Report } from '../types';
@@ -9,13 +9,105 @@ import { asImage, asNumber, asSignature, asText, filledRows, isEmpty, listItems 
 // them is the slow part of an export, so do it once.
 let fontCss: Promise<string> | null = null;
 
-/** Renders the document element to a PNG at twice its natural size. The preview
- *  is only scaled by a transform on its parent, so the element itself is full size. */
-export async function documentToPng(node: HTMLElement): Promise<Blob> {
-  fontCss ??= getFontEmbedCSS(node).catch(() => '');
-  const blob = await toBlob(node, { pixelRatio: 2, fontEmbedCSS: await fontCss });
-  if (!blob) throw new Error('empty image');
-  return blob;
+/** Twice the document's natural size: sharp when zoomed, still a reasonable file. */
+const PIXEL_RATIO = 2;
+
+/** Every style rule on the page as text, fonts aside (those are embedded separately). */
+function styleRules(): string {
+  let css = '';
+  for (const sheet of Array.from(document.styleSheets)) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      continue; // a sheet from another origin cannot be read, and is none of ours
+    }
+    for (const rule of Array.from(rules)) {
+      if (!(rule instanceof CSSFontFaceRule)) css += `${rule.cssText}\n`;
+    }
+  }
+  return css;
+}
+
+function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
+  // A canvas larger than the browser allows comes back empty; that is reported like any failed export.
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('empty image'))), 'image/png'),
+  );
+}
+
+/** Draws one page. The browser is handed a copy of the page inside an SVG
+ *  picture, together with the same style rules the screen uses, and lays it out
+ *  itself. Copying each element's computed sizes instead, as export libraries
+ *  do, drifts by fractions of a pixel, which is enough to move a page break. */
+async function pageToPng(page: HTMLElement, css: string): Promise<Blob> {
+  const width = page.offsetWidth;
+  const height = page.offsetHeight;
+  const svgNs = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNs, 'svg');
+  svg.setAttribute('width', String(width));
+  svg.setAttribute('height', String(height));
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  const frame = document.createElementNS(svgNs, 'foreignObject');
+  frame.setAttribute('width', '100%');
+  frame.setAttribute('height', '100%');
+  const style = document.createElement('style');
+  style.textContent = css;
+  frame.append(style, page.cloneNode(true));
+  svg.append(frame);
+
+  const image = new Image();
+  image.decoding = 'async';
+  const loaded = new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('page could not be drawn'));
+  });
+  // A data address rather than a blob: a canvas refuses to give back a picture drawn from the latter.
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
+  await loaded;
+  await image.decode().catch(() => undefined);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width * PIXEL_RATIO;
+  canvas.height = height * PIXEL_RATIO;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('no canvas');
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvasToPng(canvas);
+}
+
+/** Renders each page of the document to a PNG. The preview is only scaled by a
+ *  transform on its parent, so the pages themselves are full size. */
+export async function documentToPngs(root: HTMLElement): Promise<Blob[]> {
+  const pages = Array.from(root.querySelectorAll<HTMLElement>(':scope > .doc-page'));
+  if (pages.length === 0) throw new Error('no pages');
+  fontCss ??= getFontEmbedCSS(pages[0]).catch(() => '');
+  const css = styleRules() + (await fontCss);
+  const images: Blob[] = [];
+  // One at a time: each page is a large picture, and several at once can run a phone out of memory.
+  for (const page of pages) images.push(await pageToPng(page, css));
+  return images;
+}
+
+/** Gap left between pages in a stacked image, in image pixels. */
+const STACK_GAP = 24;
+
+/** All pages as one tall image, for the clipboard, which holds a single picture. */
+export async function stackImages(pages: Blob[]): Promise<Blob> {
+  if (pages.length === 1) return pages[0];
+  const bitmaps = await Promise.all(pages.map((page) => createImageBitmap(page)));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(...bitmaps.map((b) => b.width));
+  canvas.height = bitmaps.reduce((sum, b) => sum + b.height, 0) + STACK_GAP * (bitmaps.length - 1);
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('no canvas');
+  let y = 0;
+  for (const bitmap of bitmaps) {
+    context.drawImage(bitmap, 0, y);
+    y += bitmap.height + STACK_GAP;
+    bitmap.close();
+  }
+  return canvasToPng(canvas);
 }
 
 export async function copyImage(blob: Blob): Promise<void> {

@@ -24,7 +24,7 @@ export function Thumb({ report }: { report: Report }) {
   return (
     <div className="thumb" aria-hidden="true">
       <div className="thumb-inner">
-        <Document report={report} />
+        <Document report={report} continuous />
       </div>
     </div>
   );

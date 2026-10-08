@@ -1,19 +1,17 @@
-import { forwardRef, useLayoutEffect, useRef, useState } from 'react';
+import { useDeferredValue, useLayoutEffect, useRef, useState } from 'react';
 import type { Report } from '../types';
 import { Document } from './Document';
 
 const DOC_WIDTH = 794;
 
-/** Shows the document scaled to fit the available width. The ref points at the
- *  unscaled document element, which is what the exporters photograph. */
-export const PreviewPane = forwardRef<HTMLElement, { report: Report }>(function PreviewPane(
-  { report },
-  ref,
-) {
+/** Shows the document's pages scaled to fit the available width. */
+export function PreviewPane({ report }: { report: Report }) {
   const paneRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [height, setHeight] = useState(1123);
+  // Laying out a long report takes a moment; typing in the form must not wait for it.
+  const shown = useDeferredValue(report);
 
   useLayoutEffect(() => {
     const pane = paneRef.current;
@@ -35,9 +33,9 @@ export const PreviewPane = forwardRef<HTMLElement, { report: Report }>(function 
     <div className="preview-pane" ref={paneRef}>
       <div className="preview-sizer" style={{ width: DOC_WIDTH * scale, height: height * scale }}>
         <div className="preview-scaler" ref={innerRef} style={{ transform: `scale(${scale})` }}>
-          <Document ref={ref} report={report} />
+          <Document report={shown} />
         </div>
       </div>
     </div>
   );
-});
+}

@@ -1,5 +1,6 @@
 /* The in-game document. 794 × 1123 px is A4 at 96 dpi, so the same markup
-   prints 1:1 and exports as a sharp PNG. Each theme only sets variables. */
+   prints 1:1 and exports as a sharp PNG. Each theme only sets variables.
+   How the content is cut into pages is explained in components/Document.tsx. */
 
 .doc {
   --paper: #0b131a;
@@ -158,6 +159,9 @@
   flex-direction: column;
   padding: 30px 44px 22px;
 }
+.doc-flow {
+  flex: 1;
+}
 
 .doc-head {
   display: flex;
@@ -274,9 +278,6 @@
 
 /* --- sections ----------------------------------------------------------------- */
 
-.doc-sections {
-  flex: 1;
-}
 .doc-section {
   margin-top: 20px;
 }
@@ -302,20 +303,36 @@
   background: var(--line);
 }
 
-.doc-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px 18px;
+/* A full-width field is a plain block. Narrower fields share a line as floats
+   rather than grid cells: floats are the one side-by-side layout that every
+   browser can carry across a page break. The line is one gap wider than the
+   text so that each field can take its gap along. */
+.doc-section > .doc-field,
+.doc-row {
+  margin-top: 12px;
 }
+.doc-section-head + .doc-field,
+.doc-section-head + .doc-row {
+  margin-top: 0;
+}
+.doc-row {
+  display: flow-root;
+  margin-right: -18px;
+}
+.doc-row > .doc-field {
+  float: left;
+  margin-right: 18px;
+}
+.doc-row > .w-third { width: calc(100% / 3 - 18px); }
+.doc-row > .w-half { width: calc(50% - 18px); }
+.doc-row > .w-twothirds { width: calc(200% / 3 - 18px); }
+.doc-row > .w-full { width: calc(100% - 18px); }
+
 .doc-field {
-  grid-column: span 6;
   min-width: 0;
   padding-left: 10px;
   border-left: 2px solid var(--line);
 }
-.doc-field.w-twothirds { grid-column: span 4; }
-.doc-field.w-half { grid-column: span 3; }
-.doc-field.w-third { grid-column: span 2; }
 .doc-field.f-table,
 .doc-field.f-image,
 .doc-field.f-signature {
@@ -468,15 +485,31 @@
 }
 
 /* A 1/3 image that opens a section sits beside the 2/3 fields after it
-   (the personnel photo). Its rows are sized by those fields, not the image. */
-.doc-field.is-portrait {
+   (the personnel photo). It is as tall as those fields, whatever its own shape. */
+.doc-row.is-portrait {
+  position: relative;
+  min-height: 170px;
+}
+.doc-row > .doc-field.is-portrait {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  float: none;
   display: flex;
   flex-direction: column;
+  margin: 0;
+}
+.doc-beside {
+  margin-left: calc(100% / 3);
+  margin-right: 18px;
+}
+.doc-beside > .doc-field + .doc-field {
+  margin-top: 12px;
 }
 .doc-field.is-portrait .doc-figure {
   position: relative;
   flex: 1;
-  min-height: 150px;
 }
 .doc-field.is-portrait .doc-figure img {
   position: absolute;
@@ -548,14 +581,143 @@
   font: 400 9px/1.3 var(--font-mono);
   letter-spacing: 0.06em;
 }
+/* Equal shares for the two ends keep the page number in the middle. */
+.doc-foot > :first-child {
+  flex: 1 1 0;
+}
 .doc-foot-hash {
+  flex: 1 1 0;
+  text-align: right;
+}
+.doc-foot-page {
   flex: none;
+}
+
+/* --- pages -------------------------------------------------------------------- */
+
+.doc-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 794px;
+}
+.doc.doc-page {
+  display: block;
+  height: 1123px;
+  min-height: 0;
+}
+/* The sheet keeps its exact pixel size even where the page around it is sized
+   in millimetres for the printer, so print breaks where the preview does. */
+.doc-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 794px;
+  height: 1123px;
+}
+.doc.doc-page.theme-kurumsal {
+  border-top: 0;
+}
+.theme-kurumsal .doc-sheet {
+  border-top: 8px solid var(--accent);
+}
+.doc-page .doc-body {
+  position: relative;
+  min-height: 0;
+}
+.doc-page .doc-foot {
+  margin-top: 16px;
+}
+
+/* The window shows one column of the flow. It reaches a little into the side
+   margins so that nothing drawn at the edge of the text is cut; the gap
+   between columns keeps the neighbouring pages out of that slack. */
+.doc-window {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 -20px;
+  overflow: hidden;
+}
+.doc-window > .doc-flow {
+  position: absolute;
+  top: 8px;
+  bottom: 0;
+  left: 20px;
+  right: 20px;
+  column-count: 1;
+  column-gap: 60px; /* COLUMN_GAP in Document.tsx */
+  column-fill: auto;
+}
+/* The text starts a little lower than the margin, clear of the running line on
+   continuation pages. The letterhead on page one has no such line above it and
+   moves back up to the margin. */
+.doc-window > .doc-flow > .doc-head {
+  margin-top: -8px;
+}
+
+/* Continuation pages say which document they belong to, in the top margin. */
+.doc-running {
+  position: absolute;
+  top: 8px;
+  left: 44px;
+  right: 44px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  color: var(--dim);
+  font: 500 9px/1.3 var(--font-head);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.doc-running-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Where a page may end. Headings and labels stay with what they introduce,
+   short fields stay whole, long text breaks between lines. */
+.doc-head,
+.doc-titleblock,
+.doc-section-head,
+.doc-label,
+.doc-row.is-whole,
+.doc-row.is-portrait,
+.doc-field:not(.f-longtext):not(.f-list):not(.f-table),
+.doc-rich li,
+.doc-list li,
+.doc-table tr,
+.doc-figure {
+  break-inside: avoid;
+}
+.doc-section-head,
+.doc-label {
+  break-after: avoid;
+}
+.doc-rich p,
+.doc-rich li,
+.doc-list li {
+  orphans: 2;
+  widows: 2;
 }
 
 /* --- print -------------------------------------------------------------------- */
 
+/* The copy of the document that is printed and photographed. On screen it is
+   laid out at full size but takes no room and is not drawn, so that it always
+   knows its own pages, whatever the preview is doing. */
 #print-root {
-  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 794px;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 @media print {
@@ -567,7 +729,7 @@
   body {
     background: #fff !important;
   }
-  /* A long report runs onto a second sheet; keep that sheet the paper colour. */
+  /* Behind the pages, in case a printer leaves a hairline at an edge. */
   body:has(#print-root .theme-konsol) { background: #0b131a !important; }
   body:has(#print-root .theme-amber) { background: #0f0a04 !important; }
   body:has(#print-root .theme-evrak) { background: #ebe5d4 !important; }
@@ -577,21 +739,26 @@
     display: none !important;
   }
   #print-root {
-    display: block;
-  }
-  .doc {
-    width: 210mm;
-    min-height: 297mm;
+    position: static;
+    width: auto;
+    height: auto;
     overflow: visible;
+    visibility: visible;
+  }
+  .doc-pages {
+    display: block;
+    width: auto;
+  }
+  .doc.doc-page {
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
+    break-after: page;
+    break-inside: avoid;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .doc-section-head {
-    break-after: avoid;
-  }
-  .doc-field:not(.f-longtext),
-  .doc-table tr,
-  .doc-foot {
-    break-inside: avoid;
+  .doc.doc-page:last-child {
+    break-after: auto;
   }
 }

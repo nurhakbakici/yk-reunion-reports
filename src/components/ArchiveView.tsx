@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { CloudError, useCloud, type ArchiveEntry } from '../cloud/store';
 import { useT, type Key } from '../i18n';
 import { navigate } from '../router';
@@ -133,7 +133,6 @@ export function ArchiveReport({ id }: { id: string }) {
   const profile = useCloud((s) => s.profile);
   const adoptReport = useStore((s) => s.adoptReport);
   const showToast = useStore((s) => s.showToast);
-  const docRef = useRef<HTMLElement>(null);
   const [state, setState] = useState<'loading' | 'missing' | 'error' | 'ready'>('loading');
   const [loaded, setLoaded] = useState<{ entry: ArchiveEntry; report: Report } | null>(null);
 
@@ -190,7 +189,7 @@ export function ArchiveReport({ id }: { id: string }) {
           {entry.visibility === 'gms' && <span className="chip chip-accent">{t('archive.gmOnly')}</span>}
         </span>
         <div className="editor-actions">
-          <ExportButtons report={report} docRef={docRef} />
+          <ExportButtons report={report} />
           <button
             type="button"
             className="btn"
@@ -209,7 +208,7 @@ export function ArchiveReport({ id }: { id: string }) {
         </div>
       </div>
       <div className="editor-main viewer">
-        <PreviewPane ref={docRef} report={report} />
+        <PreviewPane report={report} />
       </div>
     </main>
   );

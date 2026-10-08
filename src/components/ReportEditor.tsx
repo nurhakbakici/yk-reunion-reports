@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { cloudEnabled } from '../cloud/config';
 import { useCloud } from '../cloud/store';
 import { useT, type Key } from '../i18n';
@@ -27,7 +27,6 @@ export function ReportEditor({ id }: { id: string }) {
   const deleteReport = useStore((s) => s.deleteReport);
   const published = useCloud((s) => s.mine.some((e) => e.localId === id));
 
-  const docRef = useRef<HTMLElement>(null);
   const [publishing, setPublishing] = useState(false);
   const [tab, setTab] = useState<'form' | 'preview'>('form');
 
@@ -75,7 +74,7 @@ export function ReportEditor({ id }: { id: string }) {
           <span className="editor-docno">{report.docNo}</span>
         </span>
         <div className="editor-actions">
-          <ExportButtons report={report} docRef={docRef} onReveal={() => setTab('preview')} />
+          <ExportButtons report={report} />
           {cloudEnabled && (
             <button type="button" className="btn" onClick={() => setPublishing(true)}>
               {published ? t('archive.published') : t('archive.publish')}
@@ -212,7 +211,7 @@ export function ReportEditor({ id }: { id: string }) {
           ))}
         </div>
 
-        <PreviewPane ref={docRef} report={report} />
+        <PreviewPane report={report} />
       </div>
 
       {publishing && <PublishDialog report={report} onClose={() => setPublishing(false)} />}

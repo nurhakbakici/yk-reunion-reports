@@ -593,6 +593,9 @@ textarea:focus {
 }
 .preview-sizer {
   margin: 0 auto;
+}
+/* Each page is its own sheet of paper on the desk. */
+.preview-scaler .doc-page {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
 }
 .preview-scaler {

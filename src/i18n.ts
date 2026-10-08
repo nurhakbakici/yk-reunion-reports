@@ -53,6 +53,7 @@ const tr = {
   'toast.copied': 'Panoya kopyalandı',
   'toast.imageCopied': 'Görsel panoya kopyalandı',
   'toast.pngFailed': 'Görsel oluşturulamadı. Yazdır / PDF seçeneğini dene.',
+  'toast.pagesSaved': '{n} sayfa ayrı PNG dosyaları olarak indirildi',
   'toast.clipboardFailed': 'Panoya erişilemedi.',
   'toast.imported': '{n} kayıt içe aktarıldı',
   'toast.importBad': 'Bu dosya bir rapor, şablon ya da yedek değil.',
@@ -172,6 +173,7 @@ const tr = {
   'doc.noImage': 'Görsel yok',
   'doc.esign': 'E-imza',
   'doc.motto': 'Üç yurdun ilk ortak evi',
+  'doc.page': 'Sayfa',
 
   'nav.archive': 'Arşiv',
   'archive.title': 'Kampanya Arşivi',
@@ -283,6 +285,7 @@ const en: Record<Key, string> = {
   'toast.copied': 'Copied to clipboard',
   'toast.imageCopied': 'Image copied to clipboard',
   'toast.pngFailed': 'The image could not be created. Try Print / PDF instead.',
+  'toast.pagesSaved': 'Saved {n} pages as separate PNG files',
   'toast.clipboardFailed': 'The clipboard is not available.',
   'toast.imported': 'Imported {n} records',
   'toast.importBad': 'This file is not a report, template or backup.',
@@ -402,6 +405,7 @@ const en: Record<Key, string> = {
   'doc.noImage': 'No image',
   'doc.esign': 'E-signature',
   'doc.motto': 'The first shared home of three homelands',
+  'doc.page': 'Page',
 
   'nav.archive': 'Archive',
   'archive.title': 'Campaign Archive',
