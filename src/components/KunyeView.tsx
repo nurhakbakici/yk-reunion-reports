@@ -1,3 +1,5 @@
+import { unpublishKunye } from '../cloud/kunye';
+import { useCloud } from '../cloud/store';
 import { useT, type T } from '../i18n';
 import { kunyeDesign } from '../lib/kunye';
 import { navigate } from '../router';
@@ -18,10 +20,16 @@ export function KunyeThumb({ kunye }: { kunye: Kunye }) {
   );
 }
 
-/** Asks, then deletes. Resolves to whether the künye was deleted. */
+/** Asks, then deletes, taking its published picture down too when signed in. Resolves to whether it was deleted. */
 export async function removeKunye(kunye: Kunye, t: T): Promise<boolean> {
-  if (!window.confirm(t('kunye.confirmDelete'))) return false;
-  useStore.getState().deleteKunye(kunye.id);
+  const { user } = useCloud.getState();
+  const kept = !!kunye.published && !user;
+  if (!window.confirm(t(kept ? 'kunye.confirmDeleteKept' : 'kunye.confirmDelete'))) return false;
+  const { deleteKunye, showToast } = useStore.getState();
+  if (kunye.published && user && !(await unpublishKunye(kunye.published.path))) {
+    showToast(t('kunye.unpublishFailed'));
+  }
+  deleteKunye(kunye.id);
   return true;
 }
 

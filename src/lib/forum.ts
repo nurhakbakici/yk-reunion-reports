@@ -12,6 +12,8 @@ export const FORUM_WINDOW = 'ankha-forum';
 export const HANDOFF_TIMEOUT_MS = 120_000;
 
 export const postUrl = (board: number) => `${FORUM_ORIGIN}/forum/index.php?action=post;board=${board}.0`;
+/** The forum's profile page with the signature box. */
+export const SIGNATURE_URL = `${FORUM_ORIGIN}/forum/index.php?action=profile;area=forumprofile`;
 
 export interface ForumBoard {
   id: number;

@@ -224,6 +224,41 @@ drop function if exists public.is_gm();
 drop function if exists public.can_publish();
 alter table public.profiles drop column if exists is_gm;
 
+-- --- künye pictures (forum signatures) -----------------------------------------
+-- A published künye is a PNG at kunye/<account id>/<künye id>.png. The bucket is
+-- public, because a forum signature is shown to everyone who reads the forum;
+-- only the owner, once they have entered the campaign code, can put a picture
+-- in their folder. Re-running this keeps the bucket and its pictures.
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('kunye', 'kunye', true, 1048576, array['image/png'])
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+-- Reading through the public address needs no rule; this one is for replacing a picture (upsert).
+drop policy if exists "kunye: read own" on storage.objects;
+create policy "kunye: read own" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'kunye' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "kunye: members upload" on storage.objects;
+create policy "kunye: members upload" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'kunye' and (storage.foldername(name))[1] = auth.uid()::text and public.is_member());
+
+drop policy if exists "kunye: members replace" on storage.objects;
+create policy "kunye: members replace" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'kunye' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'kunye' and (storage.foldername(name))[1] = auth.uid()::text and public.is_member());
+
+drop policy if exists "kunye: remove own" on storage.objects;
+create policy "kunye: remove own" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'kunye' and (storage.foldername(name))[1] = auth.uid()::text);
+
 -- --- running the campaign (use these in the SQL Editor) -----------------------
 --
 -- See the join code to hand to your players:
@@ -253,3 +288,8 @@ alter table public.profiles drop column if exists is_gm;
 -- Clear out what is left of the shared archive: the browser-only identities it
 -- used, together with every report they published.
 --   delete from auth.users where is_anonymous;
+--
+-- See the published künye pictures, newest first, with whose folder they are in:
+--   select o.name, u.email, o.updated_at from storage.objects o
+--   left join auth.users u on u.id::text = (storage.foldername(o.name))[1]
+--   where o.bucket_id = 'kunye' order by o.updated_at desc;

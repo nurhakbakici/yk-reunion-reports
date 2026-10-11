@@ -1,4 +1,6 @@
 import { useCallback, useDeferredValue, useId, useRef, useState } from 'react';
+import { cloudEnabled } from '../cloud/config';
+import { useCloud } from '../cloud/store';
 import { useT, type Key } from '../i18n';
 import { copyImage, nodeToPng } from '../lib/exporters';
 import { DEPARTMENT_OF, DEPT_DESIGNS, NOTE_MAX, kunyeDesign, newSerial } from '../lib/kunye';
@@ -9,6 +11,7 @@ import { useStore } from '../store';
 import { BLOOD_TYPES, KRIYO_STATES, type Kunye } from '../types';
 import { KunyeCard } from './KunyeCard';
 import { KunyePreview } from './KunyePreview';
+import { PublishDialog } from './PublishDialog';
 import { removeKunye } from './KunyeView';
 
 /** Longest side of a stored portrait: the card shows it at 120–130 px, twice that in the PNG. */
@@ -54,6 +57,8 @@ export function KunyeEditor({ id }: { id: string }) {
   const exportRef = useRef<HTMLDivElement>(null);
   const exported = useDeferredValue(kunye);
   const [busy, setBusy] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const signedIn = useCloud((s) => s.user !== null);
   const makePng = useCallback(async () => {
     const card = exportRef.current?.firstElementChild;
     if (!(card instanceof HTMLElement)) throw new Error('no card');
@@ -133,6 +138,11 @@ export function KunyeEditor({ id }: { id: string }) {
           <button type="button" className="btn" disabled={busy} onClick={() => withPng(copy)}>
             {t('export.copyImage')}
           </button>
+          {cloudEnabled && (
+            <button type="button" className="btn" disabled={busy} onClick={() => setPublishing(true)}>
+              {!signedIn ? t('kunye.publishSignIn') : kunye.published ? t('kunye.republish') : t('kunye.publish')}
+            </button>
+          )}
           <button type="button" className="btn btn-danger" onClick={remove}>
             {t('common.delete')}
           </button>
@@ -313,6 +323,8 @@ export function KunyeEditor({ id }: { id: string }) {
 
         <KunyePreview kunye={kunye} label={t('kunye.design', { name: designName })} />
       </div>
+
+      {publishing && <PublishDialog kunye={kunye} makePng={makePng} onClose={() => setPublishing(false)} />}
 
       <div className="kunye-export" ref={exportRef}>
         {exported && <KunyeCard kunye={exported} />}
