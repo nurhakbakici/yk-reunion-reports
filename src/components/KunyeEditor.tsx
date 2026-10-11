@@ -1,11 +1,13 @@
-import { useId, useState } from 'react';
+import { useCallback, useDeferredValue, useId, useRef, useState } from 'react';
 import { useT, type Key } from '../i18n';
+import { copyImage, nodeToPng } from '../lib/exporters';
 import { DEPARTMENT_OF, DEPT_DESIGNS, NOTE_MAX, kunyeDesign, newSerial } from '../lib/kunye';
-import { fileToDataUrl, pickFile } from '../lib/util';
+import { downloadBlob, fileToDataUrl, pickFile, slugify } from '../lib/util';
 import { ORGS, ORIGINS, SQUADS } from '../lore';
 import { navigate } from '../router';
 import { useStore } from '../store';
 import { BLOOD_TYPES, KRIYO_STATES, type Kunye } from '../types';
+import { KunyeCard } from './KunyeCard';
 import { KunyePreview } from './KunyePreview';
 import { removeKunye } from './KunyeView';
 
@@ -48,6 +50,15 @@ export function KunyeEditor({ id }: { id: string }) {
   const showToast = useStore((s) => s.showToast);
   const [tab, setTab] = useState<'form' | 'preview'>('form');
   const uidBase = useId();
+  // The PNG is taken from a full-size copy kept out of sight; the preview may be scaled down.
+  const exportRef = useRef<HTMLDivElement>(null);
+  const exported = useDeferredValue(kunye);
+  const [busy, setBusy] = useState(false);
+  const makePng = useCallback(async () => {
+    const card = exportRef.current?.firstElementChild;
+    if (!(card instanceof HTMLElement)) throw new Error('no card');
+    return nodeToPng(card, 'kunye');
+  }, []);
 
   if (!kunye) {
     return (
@@ -81,6 +92,30 @@ export function KunyeEditor({ id }: { id: string }) {
     if (await removeKunye(kunye, t)) navigate('/kunye');
   };
 
+  const withPng = async (use: (png: Blob) => Promise<string | void> | string | void) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const done = await use(await makePng());
+      if (done) showToast(done);
+    } catch {
+      showToast(t('toast.pngFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const download = (png: Blob) => downloadBlob(png, `kunye-${slugify(`${kunye.serial} ${kunye.name}`)}.png`);
+
+  const copy = async (png: Blob) => {
+    try {
+      await copyImage(png);
+      return t('toast.imageCopied');
+    } catch {
+      return t('toast.clipboardFailed');
+    }
+  };
+
   return (
     <main className="editor">
       <div className="editor-bar">
@@ -92,6 +127,12 @@ export function KunyeEditor({ id }: { id: string }) {
           <span className="editor-docno">{kunye.serial}</span>
         </span>
         <div className="editor-actions">
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => withPng(download)}>
+            {busy ? t('export.working') : t('export.png')}
+          </button>
+          <button type="button" className="btn" disabled={busy} onClick={() => withPng(copy)}>
+            {t('export.copyImage')}
+          </button>
           <button type="button" className="btn btn-danger" onClick={remove}>
             {t('common.delete')}
           </button>
@@ -271,6 +312,10 @@ export function KunyeEditor({ id }: { id: string }) {
         </div>
 
         <KunyePreview kunye={kunye} label={t('kunye.design', { name: designName })} />
+      </div>
+
+      <div className="kunye-export" ref={exportRef}>
+        {exported && <KunyeCard kunye={exported} />}
       </div>
     </main>
   );

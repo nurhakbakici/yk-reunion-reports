@@ -29,7 +29,6 @@ export function KunyeCard({ kunye }: { kunye: Kunye }) {
 function DeptCard({ kunye: k, design }: { kunye: Kunye; design: DeptDesign }) {
   const name = k.name.trim();
   const ids = join([k.serial, upperText(shortOrigin(k.origin)), cryo(k)]);
-  const marks = join([k.clearance > 0 && `YETKİ ${clearanceBar(k.clearance)}`, blood(k)]);
   return (
     <div className={`kunye kunye-card kunye-${design}`} data-design={design}>
       <div className="kunye-portrait">{k.portrait ? <img src={k.portrait} alt="" /> : <span>{initials(name)}</span>}</div>
@@ -38,7 +37,7 @@ function DeptCard({ kunye: k, design }: { kunye: Kunye; design: DeptDesign }) {
         <div className={`kunye-name size-${nameSize(name)}${name ? '' : ' empty'}`}>{name || 'Ad Soyad'}</div>
         {k.title.trim() && <div className="kunye-role">{k.title.trim()}</div>}
         {ids && <div className="kunye-line mono">{ids}</div>}
-        {marks && <div className="kunye-line mono accent">{marks}</div>}
+        <Marks kunye={k} />
         {k.note.trim() && <div className="kunye-note">“{k.note.trim()}”</div>}
       </div>
       <div className="kunye-symbol">
@@ -46,6 +45,23 @@ function DeptCard({ kunye: k, design }: { kunye: Kunye; design: DeptDesign }) {
       </div>
     </div>
   );
+}
+
+/** Clearance and blood type. The bar is drawn as boxes, as the reports draw their scales: the card's fonts have no ▰. */
+function Marks({ kunye: k }: { kunye: Kunye }) {
+  if (k.clearance > 0) {
+    return (
+      <div className="kunye-line mono accent">
+        YETKİ <span className="kunye-pips" aria-label={clearanceBar(k.clearance)}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <span key={i} className={i < k.clearance ? 'kunye-pip on' : 'kunye-pip'} />
+          ))}
+        </span>
+        {` ${k.clearance}/5${k.blood ? ` · ${blood(k)}` : ''}`}
+      </div>
+    );
+  }
+  return k.blood ? <div className="kunye-line mono accent">{blood(k)}</div> : null;
 }
 
 function AtlasTag({ kunye: k }: { kunye: Kunye }) {

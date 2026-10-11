@@ -1024,3 +1024,21 @@ input[type='email'] {
   width: 600px;
   transform-origin: top left;
 }
+
+/* The full-size künye the PNG is taken from: laid out, but not drawn and taking
+   no room (like #print-root in document.css), and never printed. */
+.kunye-export {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 600px;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+@media print {
+  .kunye-export {
+    display: none;
+  }
+}

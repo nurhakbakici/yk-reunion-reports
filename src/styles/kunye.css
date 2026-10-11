@@ -112,6 +112,21 @@
 .kunye-line.accent {
   color: var(--k-accent-text);
 }
+.kunye-pips {
+  display: inline-flex;
+  gap: 3px;
+  margin: 0 2px;
+  vertical-align: -1px;
+}
+.kunye-pip {
+  width: 12px;
+  height: 10px;
+  border: 1px solid currentColor;
+  transform: skewX(-20deg);
+}
+.kunye-pip.on {
+  background: currentColor;
+}
 .kunye-note {
   margin-top: 3px;
   font-size: 14px;
