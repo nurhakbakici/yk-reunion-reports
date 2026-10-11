@@ -65,6 +65,13 @@ Field types: short text, long text, choice, date, bullet list, table, level mete
 
 A report keeps its own copy of the template it was made from, so editing or deleting a template never breaks old reports. When the template has changed, the report offers to move to the new version.
 
+**Künye (ID tag) for the forum signature**
+
+- The *Künye* tab keeps an ID tag for each character: name, title, department, organisation, origin, cryo status, clearance, blood type, a short note, a portrait and a ship serial number.
+- The design follows the department: Yönetim ve Genel Hizmetler, Güvenlik, Bilim ve Kaynak Yönetimi, Teknik, and İnsan, Deneyim ve Kültür each have their own card. When the organisation is Atlas, it becomes a metal dog tag with rank and squad, and an embossed Atlas mark in place of the portrait.
+- *PNG indir* gives a 1200×380 picture with transparent corners; *Görseli kopyala* puts it on the clipboard.
+- With an archive account and the join code, *Forum imzası olarak yayınla* uploads the picture and gives the BBCode for the forum signature (under 300 characters, the forum's limit). Publishing again replaces the picture at the same address, so the signature updates within about five minutes.
+
 ## Sending a report to the forum
 
 *Foruma gönder* posts a report as a new topic in one of the ReUnion boards of the Kule Sakinleri forum, under the player's own forum account.
@@ -112,6 +119,8 @@ Menu names in the Supabase dashboard change now and then; look for the nearest m
 - **Free-tier pause:** Supabase pauses a free project after about a week with no activity. Signing in or opening the archive counts as activity; if it does pause, resume it from the dashboard.
 - **Size:** a saved report can be up to roughly 3.5 MB, images included. The free database holds 500 MB; the accounts query in `schema.sql` shows how much each person uses.
 
+- **Published ID tags** are public pictures in the `kunye` storage bucket, one folder per account, at most 1 MB each. `schema.sql` creates the bucket and its rules; run it again after updating the app. Deleting a künye while signed in takes its picture down.
+
 ## Project layout
 
 ```
@@ -133,6 +142,14 @@ src/
   lib/pdf.ts               PDF from the page images (no library)
   lib/bbcode.ts            The report as forum BBCode
   lib/forum.ts             Forum board list and the hand-over to the forum tab
+  lib/kunye.ts             Künye rules: design, serial number, card text, BBCode, import checks
+  cloud/kunye.ts           Publishing a künye picture to the kunye bucket
+  components/KunyeView.tsx     Künye list, and its card among the templates
+  components/KunyeEditor.tsx   Künye form, preview and export
+  components/KunyeCard.tsx     The drawn künye: five department cards and the Atlas tag
+  components/DeptSymbol.tsx    Department symbols and the Atlas mark
+  components/PublishDialog.tsx "Forum imzası olarak yayınla"
+  styles/kunye.css         The künye's look
   components/ForumDialog.tsx  "Foruma gönder"
   styles/document.css      Document themes and print layout
   styles/app.css           App chrome
@@ -142,7 +159,7 @@ To add or correct setting data (a new location, a new organisation), edit `src/l
 
 ## Roadmap
 
-Built so far: report library, nine templates, template editor, four themes, automatic A4 pages for long reports, PNG / clipboard / PDF / text / JSON export, import and backup, Turkish and English UI, phone layout.
+Built so far: report library, nine templates, template editor, four themes, automatic A4 pages for long reports, PNG / clipboard / PDF / text / JSON export, import and backup, Turkish and English UI, phone layout, künye forum signatures.
 
 Next, roughly in order of value:
 
@@ -155,5 +172,5 @@ Next, roughly in order of value:
 
 ## Notes
 
-- The emblems are original line drawings made for this app. Organisation logos from the wiki are not bundled; upload one per template if you want it on your documents.
+- The report emblems are original line drawings made for this app. The künye's department symbols and Atlas mark are redrawn after the wiki's *Departmanlar* player guide and the Atlas Company logo. Other organisation logos from the wiki are not bundled; upload one per template if you want it on your documents.
 - Fonts (Oxanium, JetBrains Mono, IBM Plex Serif) are open-source and embedded, so exports look the same on every machine.
