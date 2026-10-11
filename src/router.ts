@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 // Hash routing: works the same on GitHub Pages and from a file on disk.
-//   #/reports  #/report/<id>  #/templates  #/template/<id>  #/archive  #/archive/<id>
+//   #/reports  #/report/<id>  #/templates  #/template/<id>  #/archive  #/archive/<id>  #/kunye  #/kunye/<id>
 
 export type Route =
   | { view: 'reports' }
@@ -9,7 +9,9 @@ export type Route =
   | { view: 'templates' }
   | { view: 'template'; id: string }
   | { view: 'archive' }
-  | { view: 'archived'; id: string };
+  | { view: 'archived'; id: string }
+  | { view: 'kunyeler' }
+  | { view: 'kunye'; id: string };
 
 function parse(hash: string): Route {
   const [view, id] = hash.replace(/^#\/?/, '').split('/');
@@ -17,6 +19,7 @@ function parse(hash: string): Route {
   if (view === 'template' && id) return { view, id: decodeURIComponent(id) };
   if (view === 'templates') return { view };
   if (view === 'archive') return id ? { view: 'archived', id: decodeURIComponent(id) } : { view };
+  if (view === 'kunye') return id ? { view: 'kunye', id: decodeURIComponent(id) } : { view: 'kunyeler' };
   return { view: 'reports' };
 }
 

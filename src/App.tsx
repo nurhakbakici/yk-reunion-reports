@@ -4,6 +4,8 @@ import { useCloud } from './cloud/store';
 import { AccountDialog } from './components/AccountDialog';
 import { ArchiveReport, ArchiveView } from './components/ArchiveView';
 import { Emblem } from './components/Emblem';
+import { KunyeEditor } from './components/KunyeEditor';
+import { KunyeView } from './components/KunyeView';
 import { ReportEditor } from './components/ReportEditor';
 import { ReportsView } from './components/ReportsView';
 import { TemplateEditor } from './components/TemplateEditor';
@@ -37,7 +39,9 @@ export function App() {
       ? 'archive'
       : route.view === 'templates' || route.view === 'template'
         ? 'templates'
-        : 'reports';
+        : route.view === 'kunyeler' || route.view === 'kunye'
+          ? 'kunye'
+          : 'reports';
   // Without an archive configured, its pages behave like any unknown address.
   const showArchive = cloudEnabled && section === 'archive';
 
@@ -57,6 +61,9 @@ export function App() {
           </a>
           <a href="#/templates" aria-current={section === 'templates' ? 'page' : undefined}>
             {t('nav.templates')}
+          </a>
+          <a href="#/kunye" aria-current={section === 'kunye' ? 'page' : undefined}>
+            {t('nav.kunye')}
           </a>
           {cloudEnabled && (
             <a href="#/archive" aria-current={section === 'archive' ? 'page' : undefined}>
@@ -92,6 +99,10 @@ export function App() {
         <ArchiveReport key={route.id} id={route.id} />
       ) : showArchive ? (
         <ArchiveView />
+      ) : route.view === 'kunye' ? (
+        <KunyeEditor key={route.id} id={route.id} />
+      ) : route.view === 'kunyeler' ? (
+        <KunyeView />
       ) : route.view === 'report' ? (
         <ReportEditor key={route.id} id={route.id} />
       ) : route.view === 'template' ? (
