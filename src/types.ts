@@ -123,3 +123,49 @@ export interface Report {
   createdAt: number;
   updatedAt: number;
 }
+
+/** Which of the six künye designs a card is drawn in. */
+export type KunyeDesign = 'yonetim' | 'guvenlik' | 'bilim' | 'teknik' | 'kultur' | 'atlas';
+export type DeptDesign = Exclude<KunyeDesign, 'atlas'>;
+
+export type KriyoState = '' | 'uyanik' | 'kriyoda' | 'donusumlu';
+export const KRIYO_STATES: KriyoState[] = ['', 'uyanik', 'kriyoda', 'donusumlu'];
+
+export const BLOOD_TYPES = ['0 Rh+', '0 Rh−', 'A Rh+', 'A Rh−', 'B Rh+', 'B Rh−', 'AB Rh+', 'AB Rh−'];
+
+/** Where a künye's picture was published, so the forum signature can keep pointing at it. */
+export interface KunyePublished {
+  path: string;
+  url: string;
+  at: number;
+}
+
+/** A crew ID card (künye), drawn as a forum signature. */
+export interface Kunye {
+  id: string;
+  name: string;
+  /** Unvan / görev. */
+  title: string;
+  /** One of DEPARTMENTS. */
+  department: string;
+  org: string;
+  /** Atlas only. */
+  rank: string;
+  /** Atlas only. */
+  squad: string;
+  origin: string;
+  cryo: KriyoState;
+  /** 0–5; 0 draws no bar. */
+  clearance: number;
+  /** '' or one of BLOOD_TYPES. */
+  blood: string;
+  note: string;
+  /** data URL, at most 360 px on its longest side. */
+  portrait?: string;
+  serial: string;
+  /** The player typed the serial number; a new design keeps it as it is. */
+  serialManual: boolean;
+  published?: KunyePublished;
+  createdAt: number;
+  updatedAt: number;
+}
