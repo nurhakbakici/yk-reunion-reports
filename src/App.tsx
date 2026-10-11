@@ -17,6 +17,7 @@ export function App() {
   const route = useRoute();
   const ready = useStore((s) => s.ready);
   const storageOk = useStore((s) => s.storageOk);
+  const dbNotice = useStore((s) => s.dbNotice);
   const lang = useStore((s) => s.lang);
   const setLang = useStore((s) => s.setLang);
   const toast = useStore((s) => s.toast);
@@ -78,7 +79,10 @@ export function App() {
         </div>
       </header>
 
-      {!storageOk && <div className="notice notice-wide">{t('app.storageWarn')}</div>}
+      {dbNotice && (
+        <div className="notice notice-wide">{t(dbNotice === 'blocked' ? 'app.dbBlocked' : 'app.dbReload')}</div>
+      )}
+      {!storageOk && !dbNotice && <div className="notice notice-wide">{t('app.storageWarn')}</div>}
 
       {!ready ? (
         <main className="page">
