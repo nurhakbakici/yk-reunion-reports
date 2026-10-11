@@ -20,16 +20,16 @@ export function KunyeThumb({ kunye }: { kunye: Kunye }) {
   );
 }
 
-/** Asks, then deletes, taking its published picture down too when signed in. Resolves to whether it was deleted. */
+/** Asks, then deletes, taking its published picture down too when signed in. If the picture cannot be
+ *  taken down, asks again: once the künye is gone, nothing here can remove that picture any more. */
 export async function removeKunye(kunye: Kunye, t: T): Promise<boolean> {
   const { user } = useCloud.getState();
   const kept = !!kunye.published && !user;
   if (!window.confirm(t(kept ? 'kunye.confirmDeleteKept' : 'kunye.confirmDelete'))) return false;
-  const { deleteKunye, showToast } = useStore.getState();
   if (kunye.published && user && !(await unpublishKunye(kunye.published.path))) {
-    showToast(t('kunye.unpublishFailed'));
+    if (!window.confirm(t('kunye.unpublishFailed'))) return false;
   }
-  deleteKunye(kunye.id);
+  useStore.getState().deleteKunye(kunye.id);
   return true;
 }
 
