@@ -37,7 +37,7 @@ const LOGIN_ERRORS: Record<Exclude<LoginResult['code'], 'ok' | 'bad-code'>, Key>
 };
 
 /** Signing in, or making an account: the same form with two more fields. */
-function LoginForm({ onDone }: { onDone: () => void }) {
+function LoginForm() {
   const t = useT();
   const signIn = useCloud((s) => s.signIn);
   const signUp = useCloud((s) => s.signUp);
@@ -60,10 +60,9 @@ function LoginForm({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setError('');
     const result = creating ? await signUp(name, password, code) : await signIn(name, password);
-    // Signed in: nothing is left to do here. (With a wrong code the dialog stays, now asking for the code.)
+    // On success the dialog has already become the signed-in view, so say the rest in a toast.
     if (result.code === 'ok') {
       if (creating) showToast(t('account.created'));
-      onDone();
     } else if (result.code === 'bad-code') {
       showToast(t('account.createdNoCode'));
     } else {
@@ -158,7 +157,7 @@ export function JoinForm() {
   );
 }
 
-function PasswordForm({ onDone }: { onDone: () => void }) {
+function PasswordForm() {
   const t = useT();
   const changePassword = useCloud((s) => s.changePassword);
   const showToast = useStore((s) => s.showToast);
@@ -175,8 +174,8 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
     const ok = await changePassword(password);
     setBusy(false);
     if (!ok) return setError(t('account.failed'));
+    setPassword('');
     showToast(t('account.passwordChanged'));
-    onDone();
   };
 
   return (
@@ -200,8 +199,6 @@ function SignedIn({ onClose }: { onClose: () => void }) {
   const user = useCloud((s) => s.user);
   const member = useCloud((s) => s.member);
   const signOut = useCloud((s) => s.signOut);
-  // Kept folded away: shown outright, it reads as a demand to change the password just chosen.
-  const [changing, setChanging] = useState(false);
 
   return (
     <div className="stack">
@@ -217,14 +214,9 @@ function SignedIn({ onClose }: { onClose: () => void }) {
         </>
       )}
 
-      {changing && <PasswordForm onDone={() => setChanging(false)} />}
+      <PasswordForm />
 
       <div className="dialog-actions">
-        {!changing && (
-          <button type="button" className="btn" onClick={() => setChanging(true)}>
-            {t('account.changePassword')}
-          </button>
-        )}
         <button
           type="button"
           className="btn"
@@ -245,7 +237,7 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
   const user = useCloud((s) => s.user);
   return (
     <Dialog title={t('account.title')} onClose={onClose}>
-      {user ? <SignedIn onClose={onClose} /> : <LoginForm onDone={onClose} />}
+      {user ? <SignedIn onClose={onClose} /> : <LoginForm />}
     </Dialog>
   );
 }
