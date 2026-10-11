@@ -1,15 +1,29 @@
-import type { Report, Template } from './types';
+import type { Kunye, Report, Template } from './types';
 
 // Reports can carry images, so they live in IndexedDB rather than localStorage.
 // If the database cannot be opened (private mode, blocked storage) the app keeps
 // working from memory and tells the user.
 
 const DB_NAME = 'yk-reunion-reports';
-const DB_VERSION = 1;
+/** 1: reports and templates. 2: künyeler. */
+const DB_VERSION = 2;
 
-export type StoreName = 'reports' | 'templates';
+export type StoreName = 'reports' | 'templates' | 'kunyeler';
+const STORES: StoreName[] = ['reports', 'templates', 'kunyeler'];
 
 let dbPromise: Promise<IDBDatabase | null> | null = null;
+let blocked: (() => void) | null = null;
+let replaced: (() => void) | null = null;
+
+/** Called while an older version of the app, open in another tab, holds up the upgrade. */
+export function onBlocked(listener: () => void): void {
+  blocked = listener;
+}
+
+/** Called when a newer version, opened in another tab, took the database over from this tab. */
+export function onReplaced(listener: () => void): void {
+  replaced = listener;
+}
 
 function open(): Promise<IDBDatabase | null> {
   if (dbPromise) return dbPromise;
@@ -18,12 +32,25 @@ function open(): Promise<IDBDatabase | null> {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
-        if (!db.objectStoreNames.contains('reports')) db.createObjectStore('reports', { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('templates')) db.createObjectStore('templates', { keyPath: 'id' });
+        for (const name of STORES) {
+          if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: 'id' });
+        }
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        // A newer version wants to upgrade: step aside rather than hold it up.
+        // Anything written here after that would be lost, so the user is told to reload.
+        db.onversionchange = () => {
+          db.close();
+          dbPromise = Promise.resolve(null);
+          replaced?.();
+        };
+        resolve(db);
+      };
       req.onerror = () => resolve(null);
-      req.onblocked = () => resolve(null);
+      // An older version is open in another tab and does not step aside. Keep
+      // waiting: success follows as soon as that tab is closed or reloaded.
+      req.onblocked = () => blocked?.();
     } catch {
       resolve(null);
     }
@@ -39,17 +66,18 @@ function getAll<T>(db: IDBDatabase, store: StoreName): Promise<T[]> {
   });
 }
 
-export async function loadAll(): Promise<{ reports: Report[]; templates: Template[]; ok: boolean }> {
+export async function loadAll(): Promise<{ reports: Report[]; templates: Template[]; kunyeler: Kunye[]; ok: boolean }> {
   const db = await open();
-  if (!db) return { reports: [], templates: [], ok: false };
+  if (!db) return { reports: [], templates: [], kunyeler: [], ok: false };
   try {
-    const [reports, templates] = await Promise.all([
+    const [reports, templates, kunyeler] = await Promise.all([
       getAll<Report>(db, 'reports'),
       getAll<Template>(db, 'templates'),
+      getAll<Kunye>(db, 'kunyeler'),
     ]);
-    return { reports, templates, ok: true };
+    return { reports, templates, kunyeler, ok: true };
   } catch {
-    return { reports: [], templates: [], ok: false };
+    return { reports: [], templates: [], kunyeler: [], ok: false };
   }
 }
 

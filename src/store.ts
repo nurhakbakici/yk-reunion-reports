@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import * as db from './db';
 import { clone, makeDocNo, uid, gameDate } from './lib/util';
 import { BUILTIN_TEMPLATES, blankTemplate } from './templates/builtin';
+import { blankKunye, normalizeKunye, reserial } from './lib/kunye';
 import {
   CLASSIFICATIONS,
   EMBLEMS,
@@ -11,6 +12,7 @@ import {
   THEMES,
   type FieldDef,
   type FieldValue,
+  type Kunye,
   type Lang,
   type Report,
   type SectionDef,
@@ -123,6 +125,9 @@ interface State {
   reports: Report[];
   /** User-made templates. Built-in ones are added by allTemplates(). */
   templates: Template[];
+  kunyeler: Kunye[];
+  /** Why the browser database is not ready: an old tab holds up the upgrade, or a newer one took over. */
+  dbNotice: 'blocked' | 'reload' | null;
   toast: string | null;
 
   init: () => Promise<void>;
@@ -141,6 +146,9 @@ interface State {
   createTemplate: (from: Template | null, name: string) => string;
   patchTemplate: (id: string, patch: Partial<Omit<Template, 'id'>>) => void;
   deleteTemplate: (id: string) => void;
+  createKunye: () => string;
+  patchKunye: (id: string, patch: Partial<Omit<Kunye, 'id'>>) => void;
+  deleteKunye: (id: string) => void;
 
   importJson: (text: string) => number;
 }
@@ -156,7 +164,7 @@ function persistSoon(store: db.StoreName, id: string) {
     window.setTimeout(() => {
       timers.delete(key);
       const state = useStore.getState();
-      const record = (store === 'reports' ? state.reports : state.templates).find((r) => r.id === id);
+      const record = (state[store] as { id: string }[]).find((r) => r.id === id);
       if (record) void db.put(store, record);
     }, 300),
   );
@@ -170,14 +178,20 @@ export const useStore = create<State>((set, get) => ({
   lang: loadLang(),
   reports: [],
   templates: [],
+  kunyeler: [],
+  dbNotice: null,
   toast: null,
 
   async init() {
-    const { reports, templates, ok } = await db.loadAll();
+    db.onBlocked(() => set({ dbNotice: 'blocked' }));
+    db.onReplaced(() => set({ dbNotice: 'reload', storageOk: false }));
+    const { reports, templates, kunyeler, ok } = await db.loadAll();
     set({
       reports: reports.map(normalizeReport).filter((r): r is Report => r !== null),
       templates: templates.map(normalizeTemplate).filter((t): t is Template => t !== null),
+      kunyeler: kunyeler.map((k) => normalizeKunye(k, true)).filter((k): k is Kunye => k !== null),
       storageOk: ok,
+      dbNotice: null,
       ready: true,
     });
   },
@@ -289,8 +303,30 @@ export const useStore = create<State>((set, get) => ({
     void db.del('templates', id);
   },
 
-  /** Accepts a report file, a template file or a full backup. Returns how many
-   *  records were taken in; throws if the file is none of those. */
+  createKunye() {
+    const kunye = blankKunye();
+    set({ kunyeler: [kunye, ...get().kunyeler] });
+    void db.put('kunyeler', kunye);
+    return kunye.id;
+  },
+
+  patchKunye(id, patch) {
+    set({
+      kunyeler: get().kunyeler.map((k) => {
+        if (k.id !== id) return k;
+        const next = { ...k, ...patch, updatedAt: Date.now() };
+        return { ...next, serial: reserial(k, next) };
+      }),
+    });
+    persistSoon('kunyeler', id);
+  },
+
+  deleteKunye(id) {
+    set({ kunyeler: get().kunyeler.filter((k) => k.id !== id) });
+    void db.del('kunyeler', id);
+  },
+
+  /** Accepts a report file, a template file, a künye file or a full backup. Returns how many records were taken in; throws if the file is none of those. */
   importJson(text) {
     const data = JSON.parse(text) as Record<string, unknown>;
     if (!data || typeof data !== 'object' || data.app !== FILE_APP) throw new Error('unrecognised file');
@@ -306,18 +342,25 @@ export const useStore = create<State>((set, get) => ({
       .filter((t): t is Template => t !== null)
       // A shared copy of a built-in must not shadow the real one.
       .map((t) => (BUILTIN_TEMPLATES.some((b) => b.id === t.id) ? { ...t, id: uid('tpl-') } : t));
-    if (reports.length + templates.length === 0) throw new Error('nothing to import');
+    const rawKunyeler = [...(Array.isArray(data.kunyeler) ? data.kunyeler : []), ...(data.kunye ? [data.kunye] : [])];
+    // Where a künye was published belongs to the account that published it, not to
+    // whoever imports the file; publishing again puts it back at the same address.
+    const kunyeler = rawKunyeler.map((k) => normalizeKunye(k)).filter((k): k is Kunye => k !== null);
+    if (reports.length + templates.length + kunyeler.length === 0) throw new Error('nothing to import');
 
     // Same id means the same record (re-import, restored backup): replace it.
     const reportIds = new Set(reports.map((r) => r.id));
     const templateIds = new Set(templates.map((t) => t.id));
+    const kunyeIds = new Set(kunyeler.map((k) => k.id));
     set({
       reports: [...reports, ...get().reports.filter((r) => !reportIds.has(r.id))],
       templates: [...get().templates.filter((t) => !templateIds.has(t.id)), ...templates],
+      kunyeler: [...kunyeler, ...get().kunyeler.filter((k) => !kunyeIds.has(k.id))],
     });
     reports.forEach((r) => void db.put('reports', r));
     templates.forEach((t) => void db.put('templates', t));
-    return reports.length + templates.length;
+    kunyeler.forEach((k) => void db.put('kunyeler', k));
+    return reports.length + templates.length + kunyeler.length;
   },
 }));
 

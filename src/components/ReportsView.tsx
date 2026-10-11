@@ -48,6 +48,7 @@ export function ReportsView() {
   const lang = useStore((s) => s.lang);
   const reports = useStore((s) => s.reports);
   const templates = useStore((s) => s.templates);
+  const kunyeler = useStore((s) => s.kunyeler);
   const createReport = useStore((s) => s.createReport);
   const duplicateReport = useStore((s) => s.duplicateReport);
   const deleteReport = useStore((s) => s.deleteReport);
@@ -57,7 +58,7 @@ export function ReportsView() {
 
   const backup = () => {
     const stamp = new Date().toISOString().slice(0, 10);
-    downloadText(exportFile({ kind: 'backup', reports, templates }), `yk-reunion-yedek-${stamp}.json`);
+    downloadText(exportFile({ kind: 'backup', reports, templates, kunyeler }), `yk-reunion-yedek-${stamp}.json`);
   };
 
   return (
@@ -68,7 +69,7 @@ export function ReportsView() {
           <button type="button" className="btn" onClick={importFromFile}>
             {t('common.import')}
           </button>
-          {(reports.length > 0 || templates.length > 0) && (
+          {(reports.length > 0 || templates.length > 0 || kunyeler.length > 0) && (
             <button type="button" className="btn" onClick={backup}>
               {t('reports.backup')}
             </button>

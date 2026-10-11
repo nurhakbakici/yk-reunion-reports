@@ -56,7 +56,7 @@ const tr = {
   'toast.pagesSaved': '{n} sayfa ayrı PNG dosyaları olarak indirildi',
   'toast.clipboardFailed': 'Panoya erişilemedi.',
   'toast.imported': '{n} kayıt içe aktarıldı',
-  'toast.importBad': 'Bu dosya bir rapor, şablon ya da yedek değil.',
+  'toast.importBad': 'Bu dosya bir rapor, şablon, künye ya da yedek değil.',
   'toast.imageBad': 'Görsel okunamadı.',
 
   'field.today': 'Bugün',
@@ -266,6 +266,8 @@ const tr = {
   'forum.noPdf': "PDF forumun dosya sınırını aştı; konu PDF'siz açılacak.",
   'forum.footer': "Ankha Rapor Terminali ile hazırlandı. Raporun tamamı ekteki PDF'te.",
   'forum.truncated': "(Metnin devamı ekteki PDF'te.)",
+  'app.dbBlocked': 'Ankha başka bir sekmede eski sürümüyle açık. O sekmeyi kapat ya da yenile; kayıtların sonra yüklenir.',
+  'app.dbReload': 'Ankha başka bir sekmede güncellendi; bu sekmedeki değişiklikler artık kaydedilmiyor. Sekmeyi yenile.',
 };
 
 export type Key = keyof typeof tr;
@@ -325,7 +327,7 @@ const en: Record<Key, string> = {
   'toast.pagesSaved': 'Saved {n} pages as separate PNG files',
   'toast.clipboardFailed': 'The clipboard is not available.',
   'toast.imported': 'Imported {n} records',
-  'toast.importBad': 'This file is not a report, template or backup.',
+  'toast.importBad': 'This file is not a report, template, ID tag or backup.',
   'toast.imageBad': 'The image could not be read.',
 
   'field.today': 'Today',
@@ -535,6 +537,8 @@ const en: Record<Key, string> = {
   'forum.noPdf': "The PDF is over the forum's file limit; the topic opens without it.",
   'forum.footer': 'Made with the Ankha Report Terminal. The full report is the attached PDF.',
   'forum.truncated': '(The rest of the text is in the attached PDF.)',
+  'app.dbBlocked': 'Ankha is open in another tab on an older version. Close or reload that tab; your records load after that.',
+  'app.dbReload': 'Ankha was updated in another tab; changes in this tab are no longer saved. Reload the tab.',
 };
 
 const dict: Record<Lang, Record<Key, string>> = { tr, en };
