@@ -985,3 +985,42 @@ input[type='email'] {
     padding: 7px 8px;
   }
 }
+
+/* Künye lists and editor. The künye's own look is in kunye.css. */
+.kunye-thumb {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 176px;
+  border-bottom: 1px solid var(--border);
+  background: #070b0f;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+/* 236 px of card showing a 600 px künye. */
+.kunye-thumb-box {
+  width: 236px;
+  height: 75px;
+}
+.kunye-thumb-inner {
+  width: 600px;
+  transform: scale(0.3933);
+  transform-origin: top left;
+}
+.kunye-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.kunye-preview-label {
+  color: var(--muted);
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
+}
+.kunye-preview-scaler {
+  width: 600px;
+  transform-origin: top left;
+}

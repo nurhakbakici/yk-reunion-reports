@@ -5,6 +5,7 @@ import { navigate } from '../router';
 import { exportFile, useStore } from '../store';
 import { BUILTIN_TEMPLATES } from '../templates/builtin';
 import type { Template } from '../types';
+import { KunyeTemplateCard } from './KunyeView';
 import { TemplateThumb } from './Thumb';
 
 export function TemplatesView() {
@@ -101,7 +102,10 @@ export function TemplatesView() {
       )}
 
       <h2 className="group-title">{t('templates.builtin')}</h2>
-      <div className="card-grid">{BUILTIN_TEMPLATES.map(card)}</div>
+      <div className="card-grid">
+        <KunyeTemplateCard />
+        {BUILTIN_TEMPLATES.map(card)}
+      </div>
     </main>
   );
 }
