@@ -71,7 +71,7 @@ A report keeps its own copy of the template it was made from, so editing or dele
 
 1. Pick the board. The list comes from the forum (`https://kulesakinleri.org/reunion-bolumler.php`), so new boards show up by themselves. Open reports start on *Umuma Mahsus Raporlar*, classified ones on *Hizmete Mahsus Raporlar*. Meanwhile the app prepares the text, the PDF and the preview; *Forumda aç* can be clicked once they are ready.
 2. *Forumda aç* opens the board's New Topic page in a new tab. If the forum asks you to sign in, do so; the report arrives after that.
-3. The forum fills in the subject, the report as text (BBCode, in the editor's source view) and two attachments: the report as a PDF and its first page as a preview image. Hidden (`||…||`) words are left out of all three.
+3. The forum fills in the subject, the report as text (BBCode, in the editor's source view) and its attachments: the report as a PDF and a picture of every page (as many as the forum's per-post file limit allows; the PDF always has them all). Hidden (`||…||`) words are left out of all three.
 4. Check it and press *Gönder* yourself. Nothing is posted until you do.
 
 How it works: the app keeps the forum tab as an opened window and sends the report with `postMessage`. The Kule forum theme (`kule-ankha.js`) accepts it only from `https://ankha-reports.kulesakinleri.org` (and from `https://nurhakbakici.github.io` until the move is done) and only in a tab this app opened, and it never submits the form. That is also why it only works on GitHub Pages, not in the copy opened from disk. The forum side lives in the Kule theme repository; the design is `docs/superpowers/specs/2026-10-08-ankha-forum-design.md` there.

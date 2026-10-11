@@ -9,6 +9,7 @@ import {
   fitFiles,
   forumFileName,
   parseBoards,
+  previewSuffix,
   postUrl,
   type ForumReport,
   type HandoffStatus,
@@ -104,6 +105,13 @@ describe('forumFileName', () => {
     expect(forumFileName('ÇĞİÖŞÜ/../x', '', 'pdf')).toBe('CGIOSU-..-x.pdf');
     expect(forumFileName('', '', 'pdf')).toBe('rapor.pdf');
     expect(forumFileName('x'.repeat(200), '', 'pdf')).toMatch(/^x{76}\.pdf$/);
+  });
+});
+
+describe('previewSuffix', () => {
+  it('keeps the old name for a one-page report and numbers the pages of a longer one', () => {
+    expect(previewSuffix(0, 1)).toBe('-onizleme');
+    expect([0, 1, 11].map((i) => previewSuffix(i, 12))).toEqual(['-sayfa-01', '-sayfa-02', '-sayfa-12']);
   });
 });
 

@@ -224,6 +224,7 @@ const tr = {
   'account.password': 'Şifre',
   'account.passwordAgain': 'Şifre (yeniden)',
   'account.passwordHint': 'En az 6 karakter. Unutursan yalnızca oyun yöneticisi sıfırlayabilir; bir yere not et.',
+  'account.changePassword': 'Şifreyi değiştir',
   'account.newPassword': 'Yeni şifre',
   'account.change': 'Değiştir',
   'account.passwordChanged': 'Şifre değiştirildi',
@@ -264,6 +265,7 @@ const tr = {
   'forum.blocked': 'Forum sekmesi açılamadı. Tarayıcının açılır pencere engelini kaldır.',
   'forum.onlineOnly': 'Foruma gönderme yalnızca çevrim içi sürümde çalışır.',
   'forum.noPdf': "PDF forumun dosya sınırını aştı; konu PDF'siz açılacak.",
+  'forum.somePages': "Forumun dosya sınırı yüzünden {all} sayfanın yalnızca ilk {n} tanesi görsel olarak eklenecek; raporun tamamı PDF'te.",
   'forum.footer': "Ankha Rapor Terminali ile hazırlandı. Raporun tamamı ekteki PDF'te.",
   'forum.truncated': "(Metnin devamı ekteki PDF'te.)",
 };
@@ -493,6 +495,7 @@ const en: Record<Key, string> = {
   'account.password': 'Password',
   'account.passwordAgain': 'Password (again)',
   'account.passwordHint': 'At least 6 characters. If you forget it, only the game master can reset it, so write it down.',
+  'account.changePassword': 'Change password',
   'account.newPassword': 'New password',
   'account.change': 'Change',
   'account.passwordChanged': 'Password changed',
@@ -533,6 +536,7 @@ const en: Record<Key, string> = {
   'forum.blocked': 'The forum tab could not be opened. Allow pop-ups for this site.',
   'forum.onlineOnly': 'Sending to the forum only works in the online version.',
   'forum.noPdf': "The PDF is over the forum's file limit; the topic opens without it.",
+  'forum.somePages': "Because of the forum's file limit only the first {n} of {all} pages will be attached as pictures; the PDF has the whole report.",
   'forum.footer': 'Made with the Ankha Report Terminal. The full report is the attached PDF.',
   'forum.truncated': '(The rest of the text is in the attached PDF.)',
 };

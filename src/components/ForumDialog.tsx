@@ -9,6 +9,7 @@ import {
   fitFiles,
   forumFileName,
   postUrl,
+  previewSuffix,
   type ForumBoards,
   type ForumFile,
   type Handoff,
@@ -25,10 +26,14 @@ interface Prepared {
   metin: string;
   files: ForumFile[];
   pdfDropped: boolean;
+  /** How many page pictures made it, out of how many pages. */
+  pictures: number;
+  pages: number;
 }
 
-/** The text, the PDF (at half size if the full one is over the forum's file limit) and the page-1 preview, as far
- *  as they fit. */
+/** The text, the PDF (at half size if the full one is over the forum's file limit) and a picture of every page, as
+ *  far as they fit. The PDF goes first: when the forum's file count runs out, it is the last pages' pictures that
+ *  are left off, and the PDF still has them. */
 async function prepare(pages: Blob[], report: Report, limits: ForumBoards['sinirlar']): Promise<Prepared> {
   const metin = fitMessage(reportToBBCode(report), limits.ileti, translate(report.template.lang, 'forum.truncated'));
   // The same title as "PDF indir"
@@ -36,14 +41,22 @@ async function prepare(pages: Blob[], report: Report, limits: ForumBoards['sinir
   const perFile = limits.dosya_kb * 1024;
   let pdf = await pagesToPdf(pages, title, 1);
   if (perFile && pdf.size > perFile) pdf = await pagesToPdf(pages, title, 0.5);
-  const files = fitFiles(
-    [
-      { ad: forumFileName(report.docNo, '', 'pdf'), tur: 'application/pdf', veri: pdf },
-      { ad: forumFileName(report.docNo, '-onizleme', 'png'), tur: 'image/png', veri: await scalePng(pages[0], 0.5) },
-    ],
-    limits,
-  );
-  return { metin, files, pdfDropped: !files.some((f) => f.tur === 'application/pdf') };
+  const wanted: ForumFile[] = [{ ad: forumFileName(report.docNo, '', 'pdf'), tur: 'application/pdf', veri: pdf }];
+  for (const [i, page] of pages.entries()) {
+    wanted.push({
+      ad: forumFileName(report.docNo, previewSuffix(i, pages.length), 'png'),
+      tur: 'image/png',
+      veri: await scalePng(page, 0.5),
+    });
+  }
+  const files = fitFiles(wanted, limits);
+  return {
+    metin,
+    files,
+    pdfDropped: !files.some((f) => f.tur === 'application/pdf'),
+    pictures: files.filter((f) => f.tur === 'image/png').length,
+    pages: pages.length,
+  };
 }
 
 /** "Foruma gönder": pick a ReUnion board, then the forum's New Topic page opens filled in; the player posts it. */
@@ -167,6 +180,9 @@ export function ForumDialog({
           {busy && <p className="dialog-text">{t('forum.preparing')}</p>}
           {message && <p className="dialog-text">{message}</p>}
           {prepared?.pdfDropped && <p className="dialog-text dim">{t('forum.noPdf')}</p>}
+          {prepared && prepared.pictures < prepared.pages && (
+            <p className="dialog-text dim">{t('forum.somePages', { n: prepared.pictures, all: prepared.pages })}</p>
+          )}
           {failed && <p className="form-error">{t('toast.pdfFailed')}</p>}
           {error && <p className="form-error">{error}</p>}
           <div className="dialog-actions">

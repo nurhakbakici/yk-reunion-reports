@@ -110,6 +110,12 @@ export function forumFileName(base: string, suffix: string, ext: 'pdf' | 'png'):
   return `${clean || 'rapor'}.${ext}`;
 }
 
+/** How a page's picture is named: a lone page keeps the name it always had, several are numbered so the forum
+ *  lists them in reading order. */
+export function previewSuffix(index: number, count: number): string {
+  return count === 1 ? '-onizleme' : `-sayfa-${String(index + 1).padStart(2, '0')}`;
+}
+
 export type HandoffStatus =
   | { tur: 'bekliyor' }
   | { tur: 'gonderildi' }
