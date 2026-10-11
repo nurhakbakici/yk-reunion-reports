@@ -62,7 +62,7 @@ export function KunyeEditor({ id }: { id: string }) {
   const makePng = useCallback(async () => {
     const card = exportRef.current?.firstElementChild;
     if (!(card instanceof HTMLElement)) throw new Error('no card');
-    return nodeToPng(card, 'kunye');
+    return nodeToPng(card);
   }, []);
 
   if (!kunye) {
