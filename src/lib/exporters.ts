@@ -6,12 +6,20 @@ import { richToPlain } from './markup';
 import { asImage, asNumber, asSignature, asText, filledRows, isEmpty, listItems } from './values';
 
 // The embedded web fonts never change while the page is open, and collecting
-// them is the slow part of an export, so it is done once per kind of picture.
-// html-to-image only collects the fonts used inside the node it is given, so a
-// künye (two fonts) and a report (up to three, by theme) each keep their own.
+// them is the slow part of an export, so it is done once per set of fonts.
+// html-to-image only collects the fonts used inside the node it is given: a
+// report in the Amber theme uses one font, an Evrak one three, a künye two. So
+// the embedded fonts are kept per set of font families the picture uses.
 const fontCss = new Map<string, Promise<string>>();
 
-function fontsFor(key: string, node: HTMLElement): Promise<string> {
+/** The font families a picture uses, as one key: the same set, in any order, gives the same key. */
+export function fontCacheKey(families: Iterable<string>): string {
+  return [...new Set(families)].sort().join('\n');
+}
+
+function fontsFor(node: HTMLElement): Promise<string> {
+  const elements = [node, ...Array.from(node.querySelectorAll<HTMLElement>('*'))];
+  const key = fontCacheKey(elements.map((el) => getComputedStyle(el).fontFamily));
   let css = fontCss.get(key);
   if (!css) {
     css = getFontEmbedCSS(node).catch(() => '');
@@ -92,7 +100,7 @@ async function pageToPng(page: HTMLElement, css: string): Promise<Blob> {
 export async function documentToPngs(root: HTMLElement): Promise<Blob[]> {
   const pages = Array.from(root.querySelectorAll<HTMLElement>(':scope > .doc-page'));
   if (pages.length === 0) throw new Error('no pages');
-  const css = styleRules() + (await fontsFor('document', pages[0]));
+  const css = styleRules() + (await fontsFor(root));
   const images: Blob[] = [];
   // One at a time: each page is a large picture, and several at once can run a phone out of memory.
   for (const page of pages) images.push(await pageToPng(page, css));
@@ -100,8 +108,8 @@ export async function documentToPngs(root: HTMLElement): Promise<Blob[]> {
 }
 
 /** Renders a single laid-out element, such as a künye, to a PNG at twice its size. */
-export async function nodeToPng(node: HTMLElement, fontKey: string): Promise<Blob> {
-  return pageToPng(node, styleRules() + (await fontsFor(fontKey, node)));
+export async function nodeToPng(node: HTMLElement): Promise<Blob> {
+  return pageToPng(node, styleRules() + (await fontsFor(node)));
 }
 
 /** Gap left between pages in a stacked image, in image pixels. */
