@@ -21,6 +21,7 @@ import '@fontsource/ibm-plex-serif/latin-ext-600-italic.css';
 
 import './styles/app.css';
 import './styles/document.css';
+import './styles/kunye.css';
 import { App } from './App';
 
 createRoot(document.getElementById('root')!).render(

@@ -1,0 +1,275 @@
+/* Künye: a 600×190 crew card or a metal dog tag, drawn for the forum signature.
+   Everything is in fixed pixels and named fonts, and every colour is set on the
+   card itself: the PNG export copies the card into a picture of its own, without
+   the page around it. Colours follow the wiki's "Departmanlar" guide. */
+
+.kunye {
+  position: relative;
+  box-sizing: border-box;
+  width: 600px;
+  height: 190px;
+  overflow: hidden;
+  font-family: 'Oxanium', sans-serif;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.kunye *,
+.kunye *::before,
+.kunye *::after {
+  box-sizing: border-box;
+}
+.kunye .mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 400;
+}
+
+/* --- department cards ------------------------------------------------------ */
+
+.kunye-card {
+  display: flex;
+  gap: 18px;
+  padding: 18px 22px;
+  border: 2px solid var(--k-accent);
+  border-radius: 12px;
+  background-color: var(--k-bg);
+  color: var(--k-ink);
+}
+.kunye-portrait {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 150px;
+  overflow: hidden;
+  border: 1px solid var(--k-accent);
+  border-radius: 6px;
+  background: var(--k-panel);
+  color: var(--k-accent);
+  font-size: 34px;
+  font-weight: 700;
+}
+.kunye-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.kunye-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding-right: 48px;
+}
+.kunye-head,
+.kunye-role,
+.kunye-line,
+.kunye-note {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kunye-head {
+  margin-bottom: 2px;
+  color: var(--k-accent-text);
+  font-size: 12.5px;
+  letter-spacing: 0.14em;
+}
+.kunye-name {
+  font-weight: 700;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+.kunye-name.size-1 {
+  font-size: 30px;
+  white-space: nowrap;
+}
+.kunye-name.size-2 {
+  overflow: hidden;
+  font-size: 24px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kunye-name.size-3 {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 20px;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.kunye-name.empty {
+  opacity: 0.45;
+}
+.kunye-role {
+  margin-bottom: 6px;
+  font-size: 17px;
+}
+.kunye-line {
+  font-size: 14.5px;
+}
+.kunye-line.accent {
+  color: var(--k-accent-text);
+}
+.kunye-note {
+  margin-top: 3px;
+  font-size: 14px;
+  opacity: 0.85;
+}
+.kunye-symbol {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  color: var(--k-accent);
+}
+
+.kunye-yonetim {
+  --k-bg: #0f1b2d;
+  --k-panel: #1d2e47;
+  --k-accent: #c9a227;
+  --k-accent-text: #c9a227;
+  --k-ink: #e8eef6;
+}
+.kunye-guvenlik {
+  --k-bg: #160c0d;
+  --k-panel: #2a1416;
+  --k-accent: #d7263d;
+  --k-accent-text: #ef4b5e;
+  --k-ink: #f3e6e6;
+  padding-top: 28px;
+}
+/* Hazard stripe along the top edge. */
+.kunye-guvenlik::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 12px;
+  background: repeating-linear-gradient(135deg, var(--k-accent) 0 14px, var(--k-bg) 14px 28px);
+}
+.kunye-guvenlik .kunye-portrait {
+  height: 140px;
+}
+.kunye-bilim {
+  --k-bg: #0e2213;
+  --k-panel: #163420;
+  --k-accent: #5bbf6a;
+  --k-accent-text: #6fd27e;
+  --k-ink: #e3f5e6;
+  background-image: radial-gradient(rgba(91, 191, 106, 0.16) 1.5px, transparent 1.5px);
+  background-size: 16px 16px;
+}
+.kunye-bilim .kunye-portrait,
+.kunye-kultur .kunye-portrait {
+  width: 130px;
+  height: 130px;
+  margin-top: 10px;
+  border-radius: 50%;
+}
+.kunye-teknik {
+  --k-bg: #0c1828;
+  --k-panel: #132640;
+  --k-accent: #3d8bfd;
+  --k-accent-text: #69a6ff;
+  --k-ink: #e2ecfa;
+  border-style: dashed;
+  background-image:
+    linear-gradient(rgba(61, 139, 253, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(61, 139, 253, 0.1) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.kunye-teknik .kunye-portrait {
+  border-radius: 2px;
+}
+.kunye-kultur {
+  --k-bg: #f3eee8;
+  --k-panel: #e6daea;
+  --k-accent: #8e5bd6;
+  --k-accent-text: #6b3fa8;
+  --k-ink: #3a2140;
+  border-radius: 22px;
+}
+
+/* --- Atlas dog tag ----------------------------------------------------------- */
+
+.kunye-atlas {
+  display: flex;
+  align-items: center;
+  padding: 8px 0 8px 14px;
+  color: #2e3338;
+}
+.kunye-chain {
+  flex: none;
+  width: 46px;
+  border-top: 3px dotted #8a9097;
+}
+.kunye-plate {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 470px;
+  height: 172px;
+  padding: 0 22px 0 54px;
+  border: 3px solid #7d838a;
+  border-radius: 34px;
+  background-color: #b9bec4;
+  background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, 0.08));
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.6),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.25);
+  /* The hole goes through the plate: the forum shows through it. */
+  -webkit-mask-image: radial-gradient(circle at 27px 50%, transparent 9px, #000 10px);
+  mask-image: radial-gradient(circle at 27px 50%, transparent 9px, #000 10px);
+}
+.kunye-hole {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  width: 26px;
+  height: 26px;
+  margin-top: -13px;
+  border: 3px solid #7d838a;
+  border-radius: 50%;
+}
+.kunye-plate-text {
+  flex: 1;
+  min-width: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  /* Stamped letters: light on the upper-left edge, shadow on the lower-right one. */
+  text-shadow:
+    -1px -1px 0 rgba(255, 255, 255, 0.55),
+    1px 1px 0 rgba(0, 0, 0, 0.3);
+}
+.kunye-plate-text > div {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kunye-plate-text > .kunye-org {
+  font-size: 11.5px;
+  letter-spacing: 0.2em;
+}
+.kunye-plate-text > .kunye-name {
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1.2;
+}
+.kunye-plate-text > .kunye-name.size-1 {
+  font-size: 23px;
+}
+.kunye-plate-text > .kunye-name.size-2 {
+  font-size: 19px;
+}
+.kunye-plate-text > .kunye-name.size-3 {
+  font-size: 16px;
+  white-space: normal;
+}
+.kunye-atlas-mark {
+  flex: none;
+}
