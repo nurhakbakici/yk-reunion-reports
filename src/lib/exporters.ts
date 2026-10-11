@@ -6,8 +6,19 @@ import { richToPlain } from './markup';
 import { asImage, asNumber, asSignature, asText, filledRows, isEmpty, listItems } from './values';
 
 // The embedded web fonts never change while the page is open, and collecting
-// them is the slow part of an export, so do it once.
-let fontCss: Promise<string> | null = null;
+// them is the slow part of an export, so it is done once per kind of picture.
+// html-to-image only collects the fonts used inside the node it is given, so a
+// künye (two fonts) and a report (up to three, by theme) each keep their own.
+const fontCss = new Map<string, Promise<string>>();
+
+function fontsFor(key: string, node: HTMLElement): Promise<string> {
+  let css = fontCss.get(key);
+  if (!css) {
+    css = getFontEmbedCSS(node).catch(() => '');
+    fontCss.set(key, css);
+  }
+  return css;
+}
 
 /** Twice the document's natural size: sharp when zoomed, still a reasonable file. */
 const PIXEL_RATIO = 2;
@@ -81,12 +92,16 @@ async function pageToPng(page: HTMLElement, css: string): Promise<Blob> {
 export async function documentToPngs(root: HTMLElement): Promise<Blob[]> {
   const pages = Array.from(root.querySelectorAll<HTMLElement>(':scope > .doc-page'));
   if (pages.length === 0) throw new Error('no pages');
-  fontCss ??= getFontEmbedCSS(pages[0]).catch(() => '');
-  const css = styleRules() + (await fontCss);
+  const css = styleRules() + (await fontsFor('document', pages[0]));
   const images: Blob[] = [];
   // One at a time: each page is a large picture, and several at once can run a phone out of memory.
   for (const page of pages) images.push(await pageToPng(page, css));
   return images;
+}
+
+/** Renders a single laid-out element, such as a künye, to a PNG at twice its size. */
+export async function nodeToPng(node: HTMLElement, fontKey: string): Promise<Blob> {
+  return pageToPng(node, styleRules() + (await fontsFor(fontKey, node)));
 }
 
 /** Gap left between pages in a stacked image, in image pixels. */
