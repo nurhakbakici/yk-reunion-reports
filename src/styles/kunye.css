@@ -83,8 +83,10 @@
   overflow-wrap: anywhere;
 }
 .kunye-name.size-1 {
+  overflow: hidden;
   font-size: 30px;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .kunye-name.size-2 {
   overflow: hidden;
