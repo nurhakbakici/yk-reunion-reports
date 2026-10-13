@@ -9,6 +9,8 @@ import {
   fitFiles,
   forumFileName,
   postUrl,
+  replyUrl,
+  topicsOf,
   type ForumBoards,
   type ForumFile,
   type Handoff,
@@ -46,7 +48,10 @@ async function prepare(pages: Blob[], report: Report, limits: ForumBoards['sinir
   return { metin, files, pdfDropped: !files.some((f) => f.tur === 'application/pdf') };
 }
 
-/** "Foruma gönder": pick a ReUnion board, then the forum's New Topic page opens filled in; the player posts it. */
+/**
+ * "Foruma gönder": pick a ReUnion board, and a new topic or (on boards the forum lists topics for) one of its newest
+ * topics to reply to; the forum's New Topic or reply page then opens filled in, and the player posts it.
+ */
 export function ForumDialog({
   report,
   makePages,
@@ -59,6 +64,8 @@ export function ForumDialog({
   const t = useT();
   const [boards, setBoards] = useState<ForumBoards | null | undefined>(undefined);
   const [board, setBoard] = useState(0);
+  const [reply, setReply] = useState(false);
+  const [topic, setTopic] = useState(0);
   const [subject, setSubject] = useState(
     (report.title.trim() || `${report.template.docTitle} ${report.docNo}`).slice(0, MAX_SUBJECT),
   );
@@ -69,6 +76,14 @@ export function ForumDialog({
   const handoff = useRef<Handoff | null>(null);
   const offline = location.protocol === 'file:';
   const busy = !prepared && !failed;
+  const topics = boards ? topicsOf(boards, board) : [];
+  // A board without a topic list (members-only, or an older forum) takes a new topic only
+  const replying = reply && topics.length > 0;
+
+  const chooseBoard = (id: number) => {
+    setBoard(id);
+    setTopic(boards ? (topicsOf(boards, id)[0]?.id ?? 0) : 0);
+  };
 
   // The board list, then everything the forum gets, while the player picks a board: the click then only opens the
   // forum tab. Once that tab is in front, this one runs in the background, where drawing pages can stall.
@@ -80,7 +95,9 @@ export function ForumDialog({
       if (!live) return;
       setBoards(answer);
       if (!answer) return;
-      setBoard(defaultBoard(answer, report.classification));
+      const first = defaultBoard(answer, report.classification);
+      setBoard(first);
+      setTopic(topicsOf(answer, first)[0]?.id ?? 0);
       try {
         const ready = await prepare(await makePages(), report, answer.sinirlar);
         if (live) setPrepared(ready);
@@ -107,7 +124,7 @@ export function ForumDialog({
   const open = () => {
     if (!prepared) return;
     // Opened inside the click, so a pop-up blocker lets it through
-    const tab = window.open(postUrl(board), FORUM_WINDOW);
+    const tab = window.open(replying && topic ? replyUrl(topic) : postUrl(board), FORUM_WINDOW);
     if (!tab) {
       setError(t('forum.blocked'));
       return;
@@ -151,7 +168,7 @@ export function ForumDialog({
         <div className="stack">
           <label className="field">
             <span className="field-label">{t('forum.board')}</span>
-            <select value={board} onChange={(e) => setBoard(Number(e.target.value))}>
+            <select value={board} onChange={(e) => chooseBoard(Number(e.target.value))}>
               {boards.bolumler.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.ad}
@@ -159,11 +176,36 @@ export function ForumDialog({
               ))}
             </select>
           </label>
+          {topics.length > 0 && (
+            <fieldset className="choices">
+              <legend className="field-label">{t('forum.target')}</legend>
+              {([false, true] as const).map((v) => (
+                <label key={String(v)} className={reply === v ? 'choice on' : 'choice'}>
+                  <input type="radio" name="forum-target" checked={reply === v} onChange={() => setReply(v)} />
+                  <span>
+                    <strong>{t(v ? 'forum.reply' : 'forum.newTopic')}</strong>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+          {replying && (
+            <label className="field">
+              <span className="field-label">{t('forum.topic')}</span>
+              <select value={topic} onChange={(e) => setTopic(Number(e.target.value))}>
+                {topics.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.baslik}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="field">
             <span className="field-label">{t('forum.subject')}</span>
             <input type="text" maxLength={MAX_SUBJECT} value={subject} onChange={(e) => setSubject(e.target.value)} />
           </label>
-          <p className="dialog-text dim">{t('forum.hint')}</p>
+          <p className="dialog-text dim">{t(replying ? 'forum.replyHint' : 'forum.hint')}</p>
           {busy && <p className="dialog-text">{t('forum.preparing')}</p>}
           {message && <p className="dialog-text">{message}</p>}
           {prepared?.pdfDropped && <p className="dialog-text dim">{t('forum.noPdf')}</p>}

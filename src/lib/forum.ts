@@ -12,6 +12,8 @@ export const FORUM_WINDOW = 'ankha-forum';
 export const HANDOFF_TIMEOUT_MS = 120_000;
 
 export const postUrl = (board: number) => `${FORUM_ORIGIN}/forum/index.php?action=post;board=${board}.0`;
+/** The reply page of a topic: kule-ankha.js fills it the same way, the report's title replacing SMF's "Re: …". */
+export const replyUrl = (topic: number) => `${FORUM_ORIGIN}/forum/index.php?action=post;topic=${topic}.0`;
 /** The forum's profile page with the signature box. */
 export const SIGNATURE_URL = `${FORUM_ORIGIN}/forum/index.php?action=profile;area=forumprofile`;
 
@@ -20,8 +22,15 @@ export interface ForumBoard {
   ad: string;
 }
 
+export interface ForumTopic {
+  id: number;
+  baslik: string;
+}
+
 export interface ForumBoards {
   bolumler: ForumBoard[];
+  /** board id => its newest topics, only for boards guests read (the endpoint is public); other boards have none */
+  konular: Record<number, ForumTopic[]>;
   varsayilan: { acik: number; diger: number };
   /** ileti: characters; dosya_kb and ileti_kb: kilobytes; 0 means no limit */
   sinirlar: { ileti: number; dosya_kb: number; ileti_kb: number; dosya_sayisi: number };
@@ -41,10 +50,30 @@ export function parseBoards(data: unknown): ForumBoards | null {
   if (![v.acik, v.diger, s.ileti, s.dosya_kb, s.ileti_kb, s.dosya_sayisi].every(isCount)) return null;
   return {
     bolumler: bolumler.map((b: any) => ({ id: b.id, ad: b.ad.trim() })),
+    konular: parseTopics(d.konular, bolumler.map((b: any) => b.id)),
     varsayilan: { acik: v.acik, diger: v.diger },
     sinirlar: { ileti: s.ileti, dosya_kb: s.dosya_kb, ileti_kb: s.ileti_kb, dosya_sayisi: s.dosya_sayisi },
   };
 }
+
+/**
+ * The topic lists of the boards in the answer. An older forum without them, or a broken list, gives none for that
+ * board: the dialog then offers a new topic only.
+ */
+function parseTopics(data: unknown, boardIds: number[]): Record<number, ForumTopic[]> {
+  const out: Record<number, ForumTopic[]> = {};
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return out;
+  for (const [key, list] of Object.entries(data as Record<string, unknown>)) {
+    const id = Number(key);
+    if (!boardIds.includes(id) || !Array.isArray(list)) continue;
+    const topics = list.filter((t: any) => isCount(t?.id) && t.id > 0 && typeof t.baslik === 'string' && t.baslik.trim());
+    if (topics.length === list.length) out[id] = topics.map((t: any) => ({ id: t.id, baslik: t.baslik.trim() }));
+  }
+  return out;
+}
+
+/** The topics a report can go to as a reply on this board; none when the forum does not list them. */
+export const topicsOf = (boards: ForumBoards, board: number): ForumTopic[] => boards.konular[board] ?? [];
 
 /** The board list, or null when the forum does not answer properly within `timeoutMs`. */
 export async function fetchBoards(fetchFn: typeof fetch = fetch, timeoutMs = 5000): Promise<ForumBoards | null> {

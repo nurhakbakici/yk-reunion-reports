@@ -10,6 +10,8 @@ import {
   forumFileName,
   parseBoards,
   postUrl,
+  replyUrl,
+  topicsOf,
   type ForumReport,
   type HandoffStatus,
 } from './forum';
@@ -23,6 +25,7 @@ const ANSWER = {
   ],
   varsayilan: { acik: 247, diger: 248 },
   sinirlar: { ileti: 20000, dosya_kb: 30720, ileti_kb: 32768, dosya_sayisi: 10 },
+  konular: {},
 };
 
 describe('the board list', () => {
@@ -203,5 +206,44 @@ describe('createHandoff', () => {
     expect(sent).toEqual([[report, FORUM_ORIGIN]]);
     from(forum('alindi', { eklenen: 2 }));
     expect(statuses).toEqual(['bekliyor', 'zaman-asimi', 'gonderildi', 'alindi']);
+  });
+});
+
+describe('replying to a report topic', () => {
+  const withTopics = {
+    ...ANSWER,
+    konular: {
+      '247': [
+        { id: 7165, baslik: ' 14/10/2026- A Long Fall Oyun Raporları ' },
+        { id: 7164, baslik: '12/10/2026 - İhtiyaçlar Piramidi Oyun Raporları' },
+      ],
+    },
+  };
+
+  it('reads the newest topics of the boards the forum lists', () => {
+    const boards = parseBoards(withTopics)!;
+    expect(topicsOf(boards, 247)).toEqual([
+      { id: 7165, baslik: '14/10/2026- A Long Fall Oyun Raporları' },
+      { id: 7164, baslik: '12/10/2026 - İhtiyaçlar Piramidi Oyun Raporları' },
+    ]);
+    expect(topicsOf(boards, 248)).toEqual([]);
+  });
+
+  it('an older forum without topic lists still gives the boards', () => {
+    const { konular: _, ...older } = ANSWER;
+    expect(parseBoards(older)?.konular).toEqual({});
+  });
+
+  it('a broken list or an unknown board is left out, the rest stays', () => {
+    const boards = parseBoards({
+      ...ANSWER,
+      konular: { '247': [{ id: 'x', baslik: 'A' }], '999': [{ id: 1, baslik: 'B' }], '244': [{ id: 5, baslik: 'C' }] },
+    })!;
+    expect(boards.konular).toEqual({ 244: [{ id: 5, baslik: 'C' }] });
+    expect(parseBoards({ ...ANSWER, konular: [] })?.konular).toEqual({});
+  });
+
+  it("opens the topic's reply page", () => {
+    expect(replyUrl(7165)).toBe(`${FORUM_ORIGIN}/forum/index.php?action=post;topic=7165.0`);
   });
 });
